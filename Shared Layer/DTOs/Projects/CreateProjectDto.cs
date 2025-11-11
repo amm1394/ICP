@@ -17,6 +17,6 @@ namespace Shared.Icp.DTOs.Projects
         [StringLength(500, ErrorMessage = "نام فایل نباید بیشتر از 500 کاراکتر باشد")]
         public string? SourceFileName { get; set; }
 
-        public DateTime StartDate { get; set; } = DateTime.UtcNow;
+        public DateTime? StartDate { get; set; } = DateTime.UtcNow;
     }
 }

@@ -8,7 +8,7 @@
         /// <summary>
         /// شناسه یکتا
         /// </summary>
-        public int Id { get; set; }
+        public Guid Id { get; set; }
 
         /// <summary>
         /// تاریخ ایجاد

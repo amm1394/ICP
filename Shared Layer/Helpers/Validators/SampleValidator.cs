@@ -1,5 +1,5 @@
 ﻿using Shared.Icp.DTOs.Samples;
-using Shared.Icp.Exceptions;
+using Shared.Icp.Constants;
 
 namespace Shared.Icp.Helpers.Validators
 {
@@ -8,44 +8,142 @@ namespace Shared.Icp.Helpers.Validators
     /// </summary>
     public static class SampleValidator
     {
-        public static void ValidateCreate(CreateSampleDto dto)
+        /// <summary>
+        /// اعتبارسنجی CreateSampleDto
+        /// </summary>
+        public static List<string> Validate(CreateSampleDto dto)
         {
-            var errors = new Dictionary<string, List<string>>();
+            var errors = new List<string>();
 
+            if (dto == null)
+            {
+                errors.Add(ErrorMessages.Sample.InvalidData);
+                return errors;
+            }
+
+            // بررسی SampleId
             if (string.IsNullOrWhiteSpace(dto.SampleId))
-                errors.Add(nameof(dto.SampleId), new List<string> { "شناسه نمونه الزامی است" });
+            {
+                errors.Add(ErrorMessages.Sample.SampleIdRequired);
+            }
 
+            // بررسی SampleName
             if (string.IsNullOrWhiteSpace(dto.SampleName))
-                errors.Add(nameof(dto.SampleName), new List<string> { "نام نمونه الزامی است" });
+            {
+                errors.Add(ErrorMessages.Sample.SampleNameRequired);
+            }
 
-            if (dto.Weight.HasValue && dto.Weight.Value < 0)
-                errors.Add(nameof(dto.Weight), new List<string> { "وزن نمی‌تواند منفی باشد" });
+            // بررسی ProjectId
+            if (dto.ProjectId == Guid.Empty)
+            {
+                errors.Add("شناسه پروژه الزامی است");
+            }
 
-            if (dto.Volume.HasValue && dto.Volume.Value < 0)
-                errors.Add(nameof(dto.Volume), new List<string> { "حجم نمی‌تواند منفی باشد" });
+            // بررسی Weight
+            if (dto.Weight.HasValue && dto.Weight.Value <= 0)
+            {
+                errors.Add(ErrorMessages.Sample.WeightInvalid);
+            }
 
-            if (dto.DilutionFactor.HasValue && dto.DilutionFactor.Value < 1)
-                errors.Add(nameof(dto.DilutionFactor), new List<string> { "ضریب رقت باید حداقل 1 باشد" });
+            // بررسی Volume
+            if (dto.Volume.HasValue && dto.Volume.Value <= 0)
+            {
+                errors.Add(ErrorMessages.Sample.VolumeInvalid);
+            }
 
-            if (errors.Any())
-                throw new ValidationException(errors);
+            // بررسی DilutionFactor
+            if (dto.DilutionFactor.HasValue && dto.DilutionFactor.Value <= 0)
+            {
+                errors.Add(ErrorMessages.Sample.DilutionFactorInvalid);
+            }
+
+            return errors;
         }
 
-        public static void ValidateUpdate(UpdateSampleDto dto)
+        /// <summary>
+        /// اعتبارسنجی UpdateSampleDto
+        /// </summary>
+        public static List<string> Validate(UpdateSampleDto dto)
         {
-            var errors = new Dictionary<string, List<string>>();
+            var errors = new List<string>();
 
-            if (dto.Id <= 0)
-                errors.Add(nameof(dto.Id), new List<string> { "شناسه نامعتبر است" });
+            if (dto == null)
+            {
+                errors.Add(ErrorMessages.Sample.InvalidData);
+                return errors;
+            }
 
+            // بررسی SampleName
             if (string.IsNullOrWhiteSpace(dto.SampleName))
-                errors.Add(nameof(dto.SampleName), new List<string> { "نام نمونه الزامی است" });
+            {
+                errors.Add(ErrorMessages.Sample.SampleNameRequired);
+            }
 
-            if (dto.Weight.HasValue && dto.Weight.Value < 0)
-                errors.Add(nameof(dto.Weight), new List<string> { "وزن نمی‌تواند منفی باشد" });
+            // بررسی Weight
+            if (dto.Weight.HasValue && dto.Weight.Value <= 0)
+            {
+                errors.Add(ErrorMessages.Sample.WeightInvalid);
+            }
 
-            if (errors.Any())
-                throw new ValidationException(errors);
+            // بررسی Volume
+            if (dto.Volume.HasValue && dto.Volume.Value <= 0)
+            {
+                errors.Add(ErrorMessages.Sample.VolumeInvalid);
+            }
+
+            // بررسی DilutionFactor
+            if (dto.DilutionFactor.HasValue && dto.DilutionFactor.Value <= 0)
+            {
+                errors.Add(ErrorMessages.Sample.DilutionFactorInvalid);
+            }
+
+            return errors;
+        }
+
+        /// <summary>
+        /// بررسی اینکه آیا Sample قابل حذف است یا نه
+        /// </summary>
+        public static bool CanDelete(SampleDto sample)
+        {
+            if (sample == null) return false;
+
+            // می‌توان نمونه‌هایی که وضعیت Pending دارند را حذف کرد
+            return sample.Status == "Pending";
+        }
+
+        /// <summary>
+        /// بررسی اینکه آیا Sample قابل ویرایش است یا نه
+        /// </summary>
+        public static bool CanEdit(SampleDto sample)
+        {
+            if (sample == null) return false;
+
+            // نمی‌توان نمونه‌های Approved را ویرایش کرد
+            return sample.Status != "Approved";
+        }
+
+        /// <summary>
+        /// بررسی محدوده مجاز برای Weight
+        /// </summary>
+        public static bool IsWeightInRange(decimal weight, decimal min = 0.001m, decimal max = 100m)
+        {
+            return weight >= min && weight <= max;
+        }
+
+        /// <summary>
+        /// بررسی محدوده مجاز برای Volume
+        /// </summary>
+        public static bool IsVolumeInRange(decimal volume, decimal min = 0.1m, decimal max = 1000m)
+        {
+            return volume >= min && volume <= max;
+        }
+
+        /// <summary>
+        /// بررسی محدوده مجاز برای DilutionFactor
+        /// </summary>
+        public static bool IsDilutionFactorInRange(decimal df, decimal min = 1m, decimal max = 10000m)
+        {
+            return df >= min && df <= max;
         }
     }
 }

@@ -3,7 +3,7 @@
 namespace Shared.Icp.DTOs.Elements
 {
     /// <summary>
-    /// DTO برای نمایش عنصر
+    /// DTO برای نمایش عنصر شیمیایی
     /// </summary>
     public class ElementDto : BaseDto
     {
@@ -13,6 +13,5 @@ namespace Shared.Icp.DTOs.Elements
         public decimal AtomicMass { get; set; }
         public bool IsActive { get; set; }
         public int DisplayOrder { get; set; }
-        public int IsotopeCount { get; set; }
     }
 }

@@ -1,55 +1,128 @@
 ﻿namespace Shared.Icp.Constants
 {
     /// <summary>
-    /// پیام‌های خطا
+    /// پیام‌های خطای فارسی
     /// </summary>
     public static class ErrorMessages
     {
-        // Sample Errors
-        public const string SampleNotFound = "نمونه مورد نظر یافت نشد";
-        public const string SampleIdDuplicate = "شناسه نمونه تکراری است";
-        public const string SampleInvalidWeight = "وزن نمونه نامعتبر است";
-        public const string SampleInvalidVolume = "حجم نمونه نامعتبر است";
-        public const string SampleInvalidDilutionFactor = "ضریب رقت نامعتبر است";
+        /// <summary>
+        /// پیام‌های خطای Sample
+        /// </summary>
+        public static class Sample
+        {
+            public const string NotFound = "نمونه مورد نظر یافت نشد";
+            public const string InvalidData = "اطلاعات نمونه نامعتبر است";
+            public const string SampleIdRequired = "شناسه نمونه الزامی است";
+            public const string SampleNameRequired = "نام نمونه الزامی است";
+            public const string WeightInvalid = "وزن نمونه باید بزرگتر از صفر باشد";
+            public const string VolumeInvalid = "حجم نمونه باید بزرگتر از صفر باشد";
+            public const string DilutionFactorInvalid = "فاکتور رقیق‌سازی باید بزرگتر از صفر باشد";
+            public const string DuplicateSampleId = "شناسه نمونه تکراری است";
+            public const string CannotDelete = "امکان حذف این نمونه وجود ندارد";
+            public const string CannotEdit = "امکان ویرایش این نمونه وجود ندارد";
+        }
 
-        // Element Errors
-        public const string ElementNotFound = "عنصر مورد نظر یافت نشد";
-        public const string ElementSymbolDuplicate = "نماد عنصر تکراری است";
-        public const string ElementInactive = "عنصر غیرفعال است";
+        /// <summary>
+        /// پیام‌های خطای Element
+        /// </summary>
+        public static class Element
+        {
+            public const string NotFound = "عنصر مورد نظر یافت نشد";
+            public const string InvalidData = "اطلاعات عنصر نامعتبر است";
+            public const string SymbolRequired = "نماد عنصر الزامی است";
+            public const string NameRequired = "نام عنصر الزامی است";
+            public const string DuplicateSymbol = "نماد عنصر تکراری است";
+            public const string DuplicateAtomicNumber = "عدد اتمی تکراری است";
+        }
 
-        // CRM Errors
-        public const string CRMNotFound = "CRM مورد نظر یافت نشد";
-        public const string CRMIdDuplicate = "شناسه CRM تکراری است";
-        public const string CRMExpired = "CRM منقضی شده است";
-        public const string CRMValueNotFound = "مقدار تایید شده برای این عنصر یافت نشد";
+        /// <summary>
+        /// پیام‌های خطای CRM
+        /// </summary>
+        public static class CRM
+        {
+            public const string NotFound = "ماده مرجع مورد نظر یافت نشد";
+            public const string InvalidData = "اطلاعات ماده مرجع نامعتبر است";
+            public const string CRMIdRequired = "شناسه ماده مرجع الزامی است";
+            public const string NameRequired = "نام ماده مرجع الزامی است";
+            public const string DuplicateCRMId = "شناسه ماده مرجع تکراری است";
+            public const string ValueRequired = "مقدار گواهی شده الزامی است";
+            public const string ValueInvalid = "مقدار گواهی شده باید بزرگتر از صفر باشد";
+        }
 
-        // Project Errors
-        public const string ProjectNotFound = "پروژه مورد نظر یافت نشد";
-        public const string ProjectNameDuplicate = "نام پروژه تکراری است";
-        public const string ProjectHasSamples = "پروژه دارای نمونه است و قابل حذف نیست";
+        /// <summary>
+        /// پیام‌های خطای Project
+        /// </summary>
+        public static class Project
+        {
+            public const string NotFound = "پروژه مورد نظر یافت نشد";
+            public const string InvalidData = "اطلاعات پروژه نامعتبر است";
+            public const string NameRequired = "نام پروژه الزامی است";
+            public const string DuplicateName = "نام پروژه تکراری است";
+            public const string HasSamples = "این پروژه دارای نمونه است و قابل حذف نیست";
+        }
 
-        // Calibration Errors
-        public const string CalibrationCurveNotFound = "منحنی کالیبراسیون یافت نشد";
-        public const string CalibrationInvalidRSquared = "ضریب همبستگی (R²) کمتر از حد مجاز است";
-        public const string CalibrationInsufficientPoints = "تعداد نقاط کالیبراسیون کافی نیست";
+        /// <summary>
+        /// پیام‌های خطای Measurement
+        /// </summary>
+        public static class Measurement
+        {
+            public const string NotFound = "اندازه‌گیری مورد نظر یافت نشد";
+            public const string InvalidData = "اطلاعات اندازه‌گیری نامعتبر است";
+            public const string SampleRequired = "نمونه الزامی است";
+            public const string ElementRequired = "عنصر الزامی است";
+            public const string IntensityInvalid = "شدت باید بزرگتر از صفر باشد";
+            public const string ConcentrationInvalid = "غلظت نمی‌تواند منفی باشد";
+        }
 
-        // Quality Check Errors
-        public const string QualityCheckFailed = "کنترل کیفیت با خطا مواجه شد";
-        public const string QualityCheckWeightOutOfRange = "وزن خارج از محدوده مجاز است";
-        public const string QualityCheckVolumeOutOfRange = "حجم خارج از محدوده مجاز است";
-        public const string QualityCheckDFOutOfRange = "ضریب رقت خارج از محدوده مجاز است";
+        /// <summary>
+        /// پیام‌های خطای QualityCheck
+        /// </summary>
+        public static class QualityCheck
+        {
+            public const string NotFound = "کنترل کیفیت مورد نظر یافت نشد";
+            public const string InvalidData = "اطلاعات کنترل کیفیت نامعتبر است";
+            public const string CheckFailed = "کنترل کیفیت ناموفق بود";
+        }
 
-        // File Processing Errors
-        public const string FileNotFound = "فایل مورد نظر یافت نشد";
-        public const string FileFormatInvalid = "فرمت فایل نامعتبر است";
-        public const string FileEmpty = "فایل خالی است";
-        public const string FileParsingError = "خطا در خواندن فایل";
-        public const string FileColumnMissing = "ستون مورد نیاز در فایل یافت نشد";
+        /// <summary>
+        /// پیام‌های خطای عمومی
+        /// </summary>
+        public static class General
+        {
+            public const string UnexpectedError = "خطای غیرمنتظره رخ داده است";
+            public const string DatabaseError = "خطا در ارتباط با پایگاه داده";
+            public const string ValidationError = "خطا در اعتبارسنجی داده‌ها";
+            public const string Unauthorized = "شما مجوز دسترسی به این بخش را ندارید";
+            public const string NotFound = "موردی یافت نشد";
+            public const string InvalidId = "شناسه نامعتبر است";
+            public const string RequiredField = "این فیلد الزامی است";
+            public const string InvalidFormat = "فرمت داده نامعتبر است";
+        }
 
-        // General Errors
-        public const string InvalidOperation = "عملیات نامعتبر است";
-        public const string UnauthorizedAccess = "دسترسی غیرمجاز";
-        public const string DatabaseError = "خطا در دیتابیس";
-        public const string UnexpectedError = "خطای غیرمنتظره رخ داده است";
+        /// <summary>
+        /// پیام‌های خطای فایل
+        /// </summary>
+        public static class File
+        {
+            public const string NotFound = "فایل مورد نظر یافت نشد";
+            public const string InvalidFormat = "فرمت فایل نامعتبر است";
+            public const string EmptyFile = "فایل خالی است";
+            public const string TooLarge = "حجم فایل بیش از حد مجاز است";
+            public const string ReadError = "خطا در خواندن فایل";
+            public const string WriteError = "خطا در نوشتن فایل";
+            public const string UnsupportedFormat = "فرمت فایل پشتیبانی نمی‌شود";
+        }
+
+        /// <summary>
+        /// پیام‌های خطای Calibration
+        /// </summary>
+        public static class Calibration
+        {
+            public const string NotFound = "کالیبراسیون مورد نظر یافت نشد";
+            public const string InvalidData = "اطلاعات کالیبراسیون نامعتبر است";
+            public const string InsufficientPoints = "تعداد نقاط کالیبراسیون کافی نیست";
+            public const string InvalidRSquared = "ضریب همبستگی نامعتبر است";
+            public const string CurveNotFound = "منحنی کالیبراسیون یافت نشد";
+        }
     }
 }

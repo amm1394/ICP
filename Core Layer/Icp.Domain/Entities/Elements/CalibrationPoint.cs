@@ -3,33 +3,17 @@
 namespace Core.Icp.Domain.Entities.Elements
 {
     /// <summary>
-    /// نقطه در منحنی کالیبراسیون
+    /// یک نقطه در منحنی کالیبراسیون
     /// </summary>
     public class CalibrationPoint : BaseEntity
     {
-        /// <summary>
-        /// شناسه منحنی کالیبراسیون
-        /// </summary>
-        public int CalibrationCurveId { get; set; }
+        public Guid CalibrationCurveId { get; set; }
 
-        /// <summary>
-        /// منحنی کالیبراسیون مرتبط
-        /// </summary>
-        public virtual CalibrationCurve CalibrationCurve { get; set; } = null!;
-
-        /// <summary>
-        /// غلظت استاندارد (ppm)
-        /// </summary>
-        public decimal StandardConcentration { get; set; }
-
-        /// <summary>
-        /// شدت اندازه‌گیری شده
-        /// </summary>
-        public decimal MeasuredIntensity { get; set; }
-
-        /// <summary>
-        /// ترتیب نقطه
-        /// </summary>
+        public decimal Concentration { get; set; }
+        public decimal Intensity { get; set; }
         public int PointOrder { get; set; }
+
+        // Navigation Properties
+        public CalibrationCurve CalibrationCurve { get; set; } = null!;
     }
 }

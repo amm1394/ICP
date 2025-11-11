@@ -1,60 +1,28 @@
 ﻿using Core.Icp.Domain.Base;
+using Core.Icp.Domain.Entities.Projects;
 
 namespace Core.Icp.Domain.Entities.Elements
 {
     /// <summary>
-    /// منحنی کالیبراسیون یک عنصر
+    /// منحنی کالیبراسیون برای یک عنصر
     /// </summary>
     public class CalibrationCurve : BaseEntity
     {
-        /// <summary>
-        /// شناسه عنصر
-        /// </summary>
-        public int ElementId { get; set; }
+        public Guid ElementId { get; set; }
+        public Guid ProjectId { get; set; }
 
-        /// <summary>
-        /// عنصر مرتبط
-        /// </summary>
-        public virtual Element Element { get; set; } = null!;
+        public DateTime CalibrationDate { get; set; }
 
-        /// <summary>
-        /// شناسه پروژه
-        /// </summary>
-        public int ProjectId { get; set; }
-
-        /// <summary>
-        /// تاریخ کالیبراسیون
-        /// </summary>
-        public DateTime CalibrationDate { get; set; } = DateTime.UtcNow;
-
-        /// <summary>
-        /// شیب (Slope)
-        /// </summary>
+        // معادله خط: y = Slope * x + Intercept
         public decimal Slope { get; set; }
-
-        /// <summary>
-        /// عرض از مبدأ (Intercept)
-        /// </summary>
         public decimal Intercept { get; set; }
-
-        /// <summary>
-        /// ضریب همبستگی (R²)
-        /// </summary>
         public decimal RSquared { get; set; }
 
-        /// <summary>
-        /// نقاط کالیبراسیون
-        /// </summary>
-        public virtual ICollection<CalibrationPoint> CalibrationPoints { get; set; } = new List<CalibrationPoint>();
-
-        /// <summary>
-        /// آیا این منحنی فعال است؟
-        /// </summary>
-        public bool IsActive { get; set; } = true;
-
-        /// <summary>
-        /// توضیحات
-        /// </summary>
         public string? Notes { get; set; }
+
+        // Navigation Properties
+        public Element Element { get; set; } = null!;
+        public Project Project { get; set; } = null!;
+        public ICollection<CalibrationPoint> Points { get; set; } = new List<CalibrationPoint>();
     }
 }
