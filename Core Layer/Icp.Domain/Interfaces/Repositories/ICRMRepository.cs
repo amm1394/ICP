@@ -2,24 +2,13 @@
 
 namespace Core.Icp.Domain.Interfaces.Repositories
 {
-    /// <summary>
-    /// رابط Repository مواد مرجع
-    /// </summary>
     public interface ICRMRepository : IRepository<CRM>
     {
-        /// <summary>
-        /// دریافت CRM با شناسه CRM
-        /// </summary>
-        Task<CRM?> GetByCRMIdAsync(string crmId);
-
-        /// <summary>
-        /// دریافت CRM های فعال
-        /// </summary>
-        Task<IEnumerable<CRM>> GetActiveCRMsAsync();
-
-        /// <summary>
-        /// دریافت CRM با مقادیر تایید شده
-        /// </summary>
-        Task<CRM?> GetWithCertifiedValuesAsync(int id);
+        Task<IEnumerable<CRM>> GetActiveCRMsAsync(CancellationToken cancellationToken = default);
+        Task<CRM?> GetByCRMIdAsync(string crmId, CancellationToken cancellationToken = default);
+        Task<CRM?> GetByNameAsync(string name, CancellationToken cancellationToken = default);
+        Task<CRM?> GetWithCertifiedValuesAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<IEnumerable<CRM>> GetByManufacturerAsync(string manufacturer, CancellationToken cancellationToken = default);
+        Task<IEnumerable<CRM>> GetExpiringCRMsAsync(DateTime beforeDate, CancellationToken cancellationToken = default);
     }
 }

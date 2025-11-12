@@ -1,6 +1,7 @@
 ﻿using Core.Icp.Domain.Base;
 using Core.Icp.Domain.Entities.Elements;
 using Core.Icp.Domain.Entities.Samples;
+using Core.Icp.Domain.Enums;
 
 namespace Core.Icp.Domain.Entities.Projects
 {
@@ -52,6 +53,6 @@ namespace Core.Icp.Domain.Entities.Projects
         /// <summary>
         /// وضعیت پروژه
         /// </summary>
-        public string Status { get; set; } = "Active";
+        public ProjectStatus Status { get; set; } 
     }
 }

@@ -1,26 +1,20 @@
 ﻿using Core.Icp.Domain.Base;
 using Core.Icp.Domain.Entities.Projects;
 using Core.Icp.Domain.Entities.QualityControl;
-using Core.Icp.Domain.Enums;
+using Core.Icp.Domain.Enums;  // ← این رو داشته باش
 
 namespace Core.Icp.Domain.Entities.Samples
 {
-    /// <summary>
-    /// نمایانگر یک نمونه آزمایشگاهی
-    /// </summary>
     public class Sample : BaseEntity
     {
         public string SampleId { get; set; } = string.Empty;
         public string SampleName { get; set; } = string.Empty;
+        public string? Notes { get; set; }
         public DateTime RunDate { get; set; }
-        public SampleStatus Status { get; set; }
-
-        // پارامترهای فیزیکی
+        public SampleStatus Status { get; set; }  // ← باید SampleStatus enum باشه نه string
         public decimal Weight { get; set; }
         public decimal Volume { get; set; }
         public decimal DilutionFactor { get; set; }
-
-        public string? Notes { get; set; }
 
         // Foreign Keys
         public Guid ProjectId { get; set; }

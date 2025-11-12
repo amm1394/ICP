@@ -1,25 +1,13 @@
 ﻿using Core.Icp.Domain.Entities.Projects;
+using Core.Icp.Domain.Enums;
 
 namespace Core.Icp.Domain.Interfaces.Repositories
 {
-    /// <summary>
-    /// رابط Repository پروژه‌ها
-    /// </summary>
     public interface IProjectRepository : IRepository<Project>
     {
-        /// <summary>
-        /// دریافت پروژه با تمام نمونه‌ها
-        /// </summary>
-        Task<Project?> GetWithSamplesAsync(int id);
-
-        /// <summary>
-        /// دریافت پروژه‌های فعال
-        /// </summary>
-        Task<IEnumerable<Project>> GetActiveProjectsAsync();
-
-        /// <summary>
-        /// دریافت پروژه‌های کاربر
-        /// </summary>
-        Task<IEnumerable<Project>> GetUserProjectsAsync(string userId);
+        Task<IEnumerable<Project>> GetByStatusAsync(ProjectStatus status, CancellationToken cancellationToken = default);
+        Task<Project?> GetWithSamplesAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<Project?> GetWithFullDetailsAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<IEnumerable<Project>> GetRecentProjectsAsync(int count, CancellationToken cancellationToken = default);
     }
 }

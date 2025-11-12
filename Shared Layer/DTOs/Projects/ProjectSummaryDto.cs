@@ -1,4 +1,5 @@
 ﻿using Shared.Icp.DTOs.Common;
+using Core.Icp.Domain.Enums;
 
 namespace Shared.Icp.DTOs.Projects
 {
@@ -20,7 +21,7 @@ namespace Shared.Icp.DTOs.Projects
         /// <summary>
         /// وضعیت پروژه
         /// </summary>
-        public string Status { get; set; } = string.Empty;
+        public ProjectStatus Status { get; set; }
 
         /// <summary>
         /// تاریخ شروع

@@ -2,29 +2,11 @@
 
 namespace Core.Icp.Domain.Interfaces.Repositories
 {
-    /// <summary>
-    /// رابط Repository عناصر
-    /// </summary>
     public interface IElementRepository : IRepository<Element>
     {
-        /// <summary>
-        /// دریافت عنصر با نماد
-        /// </summary>
-        Task<Element?> GetBySymbolAsync(string symbol);
-
-        /// <summary>
-        /// دریافت عناصر فعال
-        /// </summary>
-        Task<IEnumerable<Element>> GetActiveElementsAsync();
-
-        /// <summary>
-        /// دریافت عنصر با ایزوتوپ‌ها
-        /// </summary>
-        Task<Element?> GetWithIsotopesAsync(int id);
-
-        /// <summary>
-        /// دریافت عنصر با منحنی‌های کالیبراسیون
-        /// </summary>
-        Task<Element?> GetWithCalibrationCurvesAsync(int id);
+        Task<IEnumerable<Element>> GetActiveElementsAsync(CancellationToken cancellationToken = default);
+        Task<Element?> GetBySymbolAsync(string symbol, CancellationToken cancellationToken = default);
+        Task<IEnumerable<Element>> GetBySymbolsAsync(IEnumerable<string> symbols, CancellationToken cancellationToken = default);
+        Task<Element?> GetWithIsotopesAsync(Guid id, CancellationToken cancellationToken = default);
     }
 }

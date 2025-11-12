@@ -1,8 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Core.Icp.Domain.Entities.Projects;
+using Core.Icp.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Core.Icp.Domain.Entities.Projects;
 
-namespace Infrastructure.Icp.Data.Configurations
+namespace Infrastructure.Data.Configurations
 {
     public class ProjectConfiguration : IEntityTypeConfiguration<Project>
     {
@@ -22,37 +23,27 @@ namespace Infrastructure.Icp.Data.Configurations
             builder.Property(p => p.SourceFileName)
                 .HasMaxLength(500);
 
+            // تبدیل Enum به String در دیتابیس
             builder.Property(p => p.Status)
-                .IsRequired()
+                .HasConversion<string>()  // ← این خط مهمه - enum رو به string تبدیل می‌کنه
                 .HasMaxLength(50)
-                .HasDefaultValue("Active");
+                .IsRequired();
 
-            builder.Property(p => p.CreatedBy)
-                .HasMaxLength(100);
-
-            builder.Property(p => p.UpdatedBy)
-                .HasMaxLength(100);
-
-            // Index ها
-            builder.HasIndex(p => p.Name)
-                .HasDatabaseName("IX_Project_Name");
-
-            builder.HasIndex(p => p.Status)
-                .HasDatabaseName("IX_Project_Status");
-
-            builder.HasIndex(p => p.StartDate)
-                .HasDatabaseName("IX_Project_StartDate");
-
-            // روابط
+            // Relationships
             builder.HasMany(p => p.Samples)
                 .WithOne(s => s.Project)
                 .HasForeignKey(s => s.ProjectId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasMany(p => p.CalibrationCurves)
                 .WithOne(c => c.Project)
                 .HasForeignKey(c => c.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Indexes
+            builder.HasIndex(p => p.Name);
+            builder.HasIndex(p => p.Status);
+            builder.HasIndex(p => p.CreatedAt);
         }
     }
 }

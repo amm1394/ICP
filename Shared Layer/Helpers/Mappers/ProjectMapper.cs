@@ -62,7 +62,7 @@ namespace Shared.Icp.Helpers.Mappers
                 Description = dto.Description,
                 SourceFileName = dto.SourceFileName,
                 StartDate = dto.StartDate.HasValue ? dto.StartDate.Value : DateTime.UtcNow,
-                Status = "Active"
+                Status =  "Active"
             };
         }
 
@@ -82,7 +82,7 @@ namespace Shared.Icp.Helpers.Mappers
             if (dto.EndDate.HasValue)
                 project.EndDate = dto.EndDate.Value;
 
-            if (!string.IsNullOrWhiteSpace(dto.Status))
+            //if (!string.IsNullOrWhiteSpace(dto.Status))
                 project.Status = dto.Status;
         }
 

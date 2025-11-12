@@ -20,9 +20,4 @@
     <ProjectReference Include="..\..\Shared Layer\DTOs\DTOs.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="UnitOfWork\" />
-    <Folder Include="Repositories\" />
-  </ItemGroup>
-
 </Project>

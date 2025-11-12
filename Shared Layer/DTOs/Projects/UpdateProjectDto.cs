@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Core.Icp.Domain.Enums;
 
 namespace Shared.Icp.DTOs.Projects
 {
@@ -21,6 +22,6 @@ namespace Shared.Icp.DTOs.Projects
 
         [Required(ErrorMessage = "وضعیت الزامی است")]
         [StringLength(50, ErrorMessage = "وضعیت نباید بیشتر از 50 کاراکتر باشد")]
-        public string Status { get; set; } = "Active";
+        public ProjectStatus Status { get; set; }
     }
 }

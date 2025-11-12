@@ -1,8 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Core.Icp.Domain.Entities.QualityControl;
+using Core.Icp.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Core.Icp.Domain.Entities.QualityControl;
 
-namespace Infrastructure.Icp.Data.Configurations
+namespace Infrastructure.Data.Configurations
 {
     public class QualityCheckConfiguration : IEntityTypeConfiguration<QualityCheck>
     {
@@ -12,33 +13,33 @@ namespace Infrastructure.Icp.Data.Configurations
 
             builder.HasKey(q => q.Id);
 
+            // تبدیل Enum ها به String
+            builder.Property(q => q.CheckType)
+                .HasConversion<string>()  // ← این رو اضافه کن
+                .HasMaxLength(50)
+                .IsRequired();
+
+            builder.Property(q => q.Status)
+                .HasConversion<string>()  // ← این رو اضافه کن
+                .HasMaxLength(50)
+                .IsRequired();
+
             builder.Property(q => q.Message)
                 .HasMaxLength(500);
 
-            builder.Property(q => q.CreatedBy)
-                .HasMaxLength(100);
+            builder.Property(q => q.Details)
+                .HasMaxLength(2000);
 
-            builder.Property(q => q.UpdatedBy)
-                .HasMaxLength(100);
-
-            // Index ها
-            builder.HasIndex(q => q.SampleId)
-                .HasDatabaseName("IX_QualityCheck_SampleId");
-
-            builder.HasIndex(q => q.CheckType)
-                .HasDatabaseName("IX_QualityCheck_Type");
-
-            builder.HasIndex(q => q.Status)
-                .HasDatabaseName("IX_QualityCheck_Status");
-
-            builder.HasIndex(q => q.CheckDate)
-                .HasDatabaseName("IX_QualityCheck_Date");
-
-            // روابط
+            // Relationships
             builder.HasOne(q => q.Sample)
                 .WithMany(s => s.QualityChecks)
                 .HasForeignKey(q => q.SampleId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Indexes
+            builder.HasIndex(q => q.SampleId);
+            builder.HasIndex(q => q.CheckType);
+            builder.HasIndex(q => q.Status);
         }
     }
 }

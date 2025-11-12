@@ -1,20 +1,18 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Core.Icp.Domain.Entities.Samples;
+using Core.Icp.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Core.Icp.Domain.Entities.Samples;
 
-namespace Infrastructure.Icp.Data.Configurations
+namespace Infrastructure.Data.Configurations
 {
     public class SampleConfiguration : IEntityTypeConfiguration<Sample>
     {
         public void Configure(EntityTypeBuilder<Sample> builder)
         {
-            // نام جدول
             builder.ToTable("Samples");
 
-            // کلید اصلی
             builder.HasKey(s => s.Id);
 
-            // ویژگی‌ها
             builder.Property(s => s.SampleId)
                 .IsRequired()
                 .HasMaxLength(100);
@@ -23,33 +21,31 @@ namespace Infrastructure.Icp.Data.Configurations
                 .IsRequired()
                 .HasMaxLength(200);
 
-            builder.Property(s => s.Notes)
-                .HasMaxLength(1000);
+            builder.Property(s => s.RunDate)
+                .IsRequired();
 
-            builder.Property(s => s.CreatedBy)
-                .HasMaxLength(100);
+            // تبدیل Enum به String
+            builder.Property(s => s.Status)
+                .HasConversion<string>()  // ← این خط رو اضافه کن
+                .HasMaxLength(50)
+                .IsRequired();
 
-            builder.Property(s => s.UpdatedBy)
-                .HasMaxLength(100);
+            builder.Property(s => s.Weight)
+                .HasPrecision(18, 4)
+                .IsRequired();
 
-            // Index ها
-            builder.HasIndex(s => s.SampleId)
-                .HasDatabaseName("IX_Sample_SampleId");
+            builder.Property(s => s.Volume)
+                .HasPrecision(18, 4)
+                .IsRequired();
 
-            builder.HasIndex(s => s.ProjectId)
-                .HasDatabaseName("IX_Sample_ProjectId");
+            builder.Property(s => s.DilutionFactor)
+                .IsRequired();
 
-            builder.HasIndex(s => s.Status)
-                .HasDatabaseName("IX_Sample_Status");
-
-            builder.HasIndex(s => s.RunDate)
-                .HasDatabaseName("IX_Sample_RunDate");
-
-            // روابط
+            // Relationships
             builder.HasOne(s => s.Project)
                 .WithMany(p => p.Samples)
                 .HasForeignKey(s => s.ProjectId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasMany(s => s.Measurements)
                 .WithOne(m => m.Sample)
@@ -60,6 +56,12 @@ namespace Infrastructure.Icp.Data.Configurations
                 .WithOne(q => q.Sample)
                 .HasForeignKey(q => q.SampleId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Indexes
+            builder.HasIndex(s => s.SampleId).IsUnique();
+            builder.HasIndex(s => s.ProjectId);
+            builder.HasIndex(s => s.Status);
+            builder.HasIndex(s => s.RunDate);
         }
     }
 }

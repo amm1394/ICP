@@ -1,35 +1,15 @@
 ﻿using Core.Icp.Domain.Entities.Samples;
+using Core.Icp.Domain.Enums;
 
 namespace Core.Icp.Domain.Interfaces.Repositories
 {
-    /// <summary>
-    /// رابط Repository نمونه‌ها
-    /// </summary>
     public interface ISampleRepository : IRepository<Sample>
     {
-        /// <summary>
-        /// دریافت نمونه‌های یک پروژه
-        /// </summary>
-        Task<IEnumerable<Sample>> GetByProjectIdAsync(int projectId);
-
-        /// <summary>
-        /// جستجوی نمونه با SampleId
-        /// </summary>
-        Task<Sample?> GetBySampleIdAsync(string sampleId);
-
-        /// <summary>
-        /// دریافت نمونه با تمام اندازه‌گیری‌ها
-        /// </summary>
-        Task<Sample?> GetWithMeasurementsAsync(int id);
-
-        /// <summary>
-        /// دریافت نمونه با کنترل‌های کیفیت
-        /// </summary>
-        Task<Sample?> GetWithQualityChecksAsync(int id);
-
-        /// <summary>
-        /// جستجوی نمونه‌ها
-        /// </summary>
-        Task<IEnumerable<Sample>> SearchAsync(string searchTerm);
+        Task<IEnumerable<Sample>> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken = default);
+        Task<IEnumerable<Sample>> GetBySampleIdsAsync(IEnumerable<string> sampleIds, CancellationToken cancellationToken = default);
+        Task<IEnumerable<Sample>> GetByStatusAsync(SampleStatus status, CancellationToken cancellationToken = default);
+        Task<IEnumerable<Sample>> GetByDateRangeAsync(DateTime startDate, DateTime endDate, CancellationToken cancellationToken = default);
+        Task<Sample?> GetWithMeasurementsAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<IEnumerable<Sample>> GetWithMeasurementsByProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
     }
 }
