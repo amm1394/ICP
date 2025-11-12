@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core Layer\Icp.Domain\Domain.csproj" />
-    <ProjectReference Include="..\BaseException\Exceptions.csproj" />
     <ProjectReference Include="..\Constants\Constants.csproj" />
     <ProjectReference Include="..\DTOs\DTOs.csproj" />
   </ItemGroup>

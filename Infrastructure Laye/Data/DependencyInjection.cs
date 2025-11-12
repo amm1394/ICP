@@ -18,7 +18,7 @@ namespace Infrastructure.Data
             services.AddDbContext<ICPDbContext>(options =>
                 options.UseSqlServer(
                     configuration.GetConnectionString("DefaultConnection"),
-                    b => b.MigrationsAssembly(typeof(ICPDbContext).Assembly.FullName)));
+                    b => b.MigrationsAssembly("API")));
 
             // Repositories
             services.AddScoped<ISampleRepository, SampleRepository>();
