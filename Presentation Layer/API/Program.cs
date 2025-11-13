@@ -3,11 +3,16 @@ using Microsoft.EntityFrameworkCore;
 using Presentation.Icp.API.Middleware;
 using System.Text.Json.Serialization;
 
+// Program bootstrap for the ICP Analysis API.
+// This file wires up dependency injection, configures JSON, Swagger, CORS, and the HTTP middleware pipeline.
+// Note: User-facing API messages (success/error) are localized in Persian elsewhere (controllers, ApiResponse, middleware).
 var builder = WebApplication.CreateBuilder(args);
 
 #region Services Configuration
 
-// Add Controllers with JSON options
+// Register MVC controllers and configure System.Text.Json options
+// - ReferenceHandler.IgnoreCycles: Avoid circular reference serialization (e.g., EF navigation properties)
+// - DefaultIgnoreCondition.WhenWritingNull: Do not output null properties (smaller, cleaner payloads)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -15,7 +20,8 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
     });
 
-// Add Swagger/OpenAPI
+// Register Swagger/OpenAPI for interactive documentation and testing
+// Enabled only in Development in the pipeline below
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -32,10 +38,13 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Add Infrastructure Data Layer
+// Register Infrastructure Data Layer (DbContext, repositories, Unit of Work)
+// The DI extension configures the SQL Server provider and migrations assembly
 builder.Services.AddInfrastructureData(builder.Configuration);
 
-// Add CORS
+// Configure CORS policies
+// - "AllowAll": Development-friendly policy (any origin/method/header). Do NOT use in production.
+// - "AllowSpecific": Production-ready policy using configured allowed origins (appsettings: Cors:AllowedOrigins)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -47,6 +56,8 @@ builder.Services.AddCors(options =>
 
     options.AddPolicy("AllowSpecific", policy =>
     {
+        // Example configuration in appsettings.json:
+        // "Cors": { "AllowedOrigins": [ "https://app.example.com", "https://admin.example.com" ] }
         var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
             ?? new[] { "http://localhost:5000" };
 
@@ -57,7 +68,8 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add Health Checks
+// Health Checks (optional)
+// Add built-in health checks when you need dependency health reporting (DB, external services, etc.)
 //builder.Services.AddHealthChecks()
 //    .AddDbContextCheck<Infrastructure.Icp.Data.Context.ICPDbContext>();
 
@@ -67,38 +79,45 @@ var app = builder.Build();
 
 #region Middleware Pipeline
 
-// Configure the HTTP request pipeline
+// Development-only Swagger UI (interactive docs)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "ICP Analysis API V1");
-        c.RoutePrefix = string.Empty; // Swagger در root
+        c.RoutePrefix = string.Empty; // Serve Swagger UI at the application root ("/")
     });
 }
 
-// Global Error Handler
+// Global error handler middleware
+// Ensures all errors produce a consistent JSON body with Persian messages where applicable
 app.UseMiddleware<ErrorHandlerMiddleware>();
 
+// Redirect HTTP to HTTPS if configured (recommended in production)
 app.UseHttpsRedirection();
 
-// CORS
-app.UseCors("AllowAll"); // برای Development
-// app.UseCors("AllowSpecific"); // برای Production
+// CORS policy
+// Development: open policy for easy testing
+// Production: switch to "AllowSpecific" and configure allowed origins
+app.UseCors("AllowAll");
+// app.UseCors("AllowSpecific");
 
+// Authorization (add Authentication above if needed, e.g., JWT/Identity)
 app.UseAuthorization();
 
+// Attribute-routed API controllers
 app.MapControllers();
 
-// Health Check Endpoint
+// Lightweight health check endpoint (returns 200/503). Pair with AddHealthChecks to report dependencies.
 app.MapHealthChecks("/health");
 
 #endregion
 
 #region Database Migration (Optional - for Development)
 
-// Auto-migrate database in development
+// Validate database connectivity and optionally apply migrations during development
+// Persian user-facing messages remain defined in ApiResponse/Error middleware; logs are for operators/devs.
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
@@ -106,7 +125,7 @@ if (app.Environment.IsDevelopment())
     try
     {
         var context = services.GetRequiredService<Infrastructure.Icp.Data.Context.ICPDbContext>();
-        // context.Database.Migrate(); // فعلاً comment کن، بعداً باز می‌کنیم
+        // context.Database.Migrate(); // Uncomment to auto-apply EF Core migrations at startup (dev only)
         app.Logger.LogInformation("Database connection successful");
     }
     catch (Exception ex)
@@ -117,4 +136,5 @@ if (app.Environment.IsDevelopment())
 
 #endregion
 
+// Start the web application
 app.Run();

@@ -1,4 +1,4 @@
-﻿// Infrastructure.Icp.Reports/Interfaces/IReportService.cs
+﻿using Infrastructure.Icp.Reports.Models;
 using Shared.Icp.DTOs.Projects;
 using Shared.Icp.DTOs.QualityControl;
 using Shared.Icp.DTOs.Reports;
@@ -143,4 +143,23 @@ public interface IReportService
     /// دریافت گزارش ذخیره شده
     /// </summary>
     Task<ReportResultDto> GetSavedReportAsync(Guid reportId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// دریافت تاریخچه گزارش‌ها
+    /// </summary>
+    Task<List<ReportHistoryDto>> GetReportHistoryAsync(
+        Guid? projectId = null,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// حذف گزارش
+    /// </summary>
+    Task<bool> DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// دانلود گزارش ذخیره شده
+    /// </summary>
+    Task<byte[]> DownloadReportAsync(Guid reportId, CancellationToken cancellationToken = default);
 }

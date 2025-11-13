@@ -6,14 +6,34 @@ using Shared.Icp.Helpers.Mappers;
 
 namespace Presentation.Icp.API.Controllers
 {
+    /// <summary>
+    /// Provides endpoints for managing analysis projects.
+    /// </summary>
+    /// <remarks>
+    /// This controller exposes CRUD operations and utility endpoints for projects, including
+    /// retrieval of summaries and recent items. Responses are wrapped in a consistent
+    /// <see cref="ApiResponse{T}"/> envelope. User-facing messages in responses remain localized in Persian.
+    /// </remarks>
     [ApiController]
     [Route("api/[controller]")]
     [Produces("application/json")]
     public class ProjectsController : ControllerBase
     {
+        /// <summary>
+        /// Unit of Work for accessing repositories and persisting changes.
+        /// </summary>
         private readonly IUnitOfWork _unitOfWork;
+
+        /// <summary>
+        /// Logger instance for diagnostic and audit logging.
+        /// </summary>
         private readonly ILogger<ProjectsController> _logger;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ProjectsController"/> class.
+        /// </summary>
+        /// <param name="unitOfWork">Unit of Work for accessing repositories and persisting changes.</param>
+        /// <param name="logger">The logger instance.</param>
         public ProjectsController(IUnitOfWork unitOfWork, ILogger<ProjectsController> logger)
         {
             _unitOfWork = unitOfWork;
@@ -21,8 +41,11 @@ namespace Presentation.Icp.API.Controllers
         }
 
         /// <summary>
-        /// دریافت لیست تمام پروژه‌ها
+        /// Gets a list of all projects as summaries.
         /// </summary>
+        /// <returns>
+        /// 200 OK with a list of <see cref="ProjectSummaryDto"/> wrapped in <see cref="ApiResponse{T}"/>.
+        /// </returns>
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<List<ProjectSummaryDto>>), StatusCodes.Status200OK)]
         public async Task<ActionResult<ApiResponse<List<ProjectSummaryDto>>>> GetAll()
@@ -38,8 +61,13 @@ namespace Presentation.Icp.API.Controllers
         }
 
         /// <summary>
-        /// دریافت یک پروژه با شناسه
+        /// Gets a project by its unique identifier, including its samples.
         /// </summary>
+        /// <param name="id">The project identifier.</param>
+        /// <returns>
+        /// 200 OK with a <see cref="ProjectDto"/> wrapped in <see cref="ApiResponse{T}"/> when found;
+        /// 404 Not Found when the project does not exist.
+        /// </returns>
         [HttpGet("{id:guid}")]
         [ProducesResponseType(typeof(ApiResponse<ProjectDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -57,8 +85,13 @@ namespace Presentation.Icp.API.Controllers
         }
 
         /// <summary>
-        /// ایجاد پروژه جدید
+        /// Creates a new project.
         /// </summary>
+        /// <param name="dto">The request payload containing project data.</param>
+        /// <returns>
+        /// 201 Created with the created <see cref="ProjectDto"/> wrapped in <see cref="ApiResponse{T}"/>;
+        /// 400 Bad Request if the payload is invalid.
+        /// </returns>
         [HttpPost]
         [ProducesResponseType(typeof(ApiResponse<ProjectDto>), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -79,8 +112,14 @@ namespace Presentation.Icp.API.Controllers
         }
 
         /// <summary>
-        /// به‌روزرسانی پروژه
+        /// Updates an existing project.
         /// </summary>
+        /// <param name="id">The identifier of the project to update.</param>
+        /// <param name="dto">The payload containing updated values.</param>
+        /// <returns>
+        /// 200 OK with the updated <see cref="ProjectDto"/> wrapped in <see cref="ApiResponse{T}"/>;
+        /// 404 Not Found when the project does not exist.
+        /// </returns>
         [HttpPut("{id:guid}")]
         [ProducesResponseType(typeof(ApiResponse<ProjectDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -102,8 +141,13 @@ namespace Presentation.Icp.API.Controllers
         }
 
         /// <summary>
-        /// حذف پروژه (Soft Delete)
+        /// Deletes a project using soft delete semantics.
         /// </summary>
+        /// <param name="id">The identifier of the project to delete.</param>
+        /// <returns>
+        /// 204 No Content on success;
+        /// 404 Not Found when the project does not exist.
+        /// </returns>
         [HttpDelete("{id:guid}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -123,8 +167,12 @@ namespace Presentation.Icp.API.Controllers
         }
 
         /// <summary>
-        /// دریافت پروژه‌های اخیر
+        /// Gets the most recent projects as summaries.
         /// </summary>
+        /// <param name="count">The number of recent projects to return. Defaults to 10.</param>
+        /// <returns>
+        /// 200 OK with a list of <see cref="ProjectSummaryDto"/> wrapped in <see cref="ApiResponse{T}"/>.
+        /// </returns>
         [HttpGet("recent/{count:int}")]
         [ProducesResponseType(typeof(ApiResponse<List<ProjectSummaryDto>>), StatusCodes.Status200OK)]
         public async Task<ActionResult<ApiResponse<List<ProjectSummaryDto>>>> GetRecent(int count = 10)
