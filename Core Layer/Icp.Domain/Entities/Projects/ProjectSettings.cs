@@ -3,6 +3,10 @@
     /// <summary>
     /// Defines the settings for a project, including validation thresholds and processing options.
     /// </summary>
+    /// <remarks>
+    /// These settings are typically serialized into the <c>SettingsJson</c> field of the <see cref="Project"/> entity
+    /// and influence quality control checks and display formatting across the project lifecycle.
+    /// </remarks>
     public class ProjectSettings
     {
         /// <summary>

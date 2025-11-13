@@ -5,8 +5,12 @@ using Core.Icp.Domain.Enums;
 namespace Core.Icp.Domain.Entities.QualityControl
 {
     /// <summary>
-    /// Represents the result of a single quality control check performed on a sample.
+    /// Represents the result of a single quality control (QC) check performed on a sample.
     /// </summary>
+    /// <remarks>
+    /// QC checks validate sample inputs and derived results against project settings and laboratory rules.
+    /// Examples include weight/volume ranges, dilution limits, CRM agreement, and drift monitoring.
+    /// </remarks>
     public class QualityCheck : BaseEntity
     {
         /// <summary>
@@ -15,7 +19,7 @@ namespace Core.Icp.Domain.Entities.QualityControl
         public CheckType CheckType { get; set; }
 
         /// <summary>
-        /// Gets or sets the status of the quality check result (e.g., Pass, Fail, Warning).
+        /// Gets or sets the status of the quality check result (e.g., Pass, Fail, Warning, Pending).
         /// </summary>
         public CheckStatus Status { get; set; }
 
@@ -37,7 +41,7 @@ namespace Core.Icp.Domain.Entities.QualityControl
 
         // Navigation Properties
         /// <summary>
-        /// Gets or sets the navigation property to the associated Sample entity.
+        /// Gets or sets the navigation property to the associated <see cref="Sample"/> entity.
         /// </summary>
         public Sample Sample { get; set; } = null!;
     }

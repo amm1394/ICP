@@ -3,8 +3,13 @@
 namespace Core.Icp.Domain.Entities.Elements
 {
     /// <summary>
-    /// Represents a chemical element.
+    /// Represents a chemical element used in analyses (e.g., Fe, Cu).
     /// </summary>
+    /// <remarks>
+    /// This entity captures static metadata about an element that is shared across projects and samples.
+    /// The element can optionally define a preferred calculation method that downstream components may use
+    /// when building calibration curves or calculating concentrations.
+    /// </remarks>
     public class Element : BaseEntity
     {
         /// <summary>
@@ -23,7 +28,7 @@ namespace Core.Icp.Domain.Entities.Elements
         public int AtomicNumber { get; set; }
 
         /// <summary>
-        /// Gets or sets the atomic mass of the element.
+        /// Gets or sets the standard atomic mass of the element (in atomic mass units, u).
         /// </summary>
         public decimal AtomicMass { get; set; }
 
@@ -38,8 +43,8 @@ namespace Core.Icp.Domain.Entities.Elements
         public int DisplayOrder { get; set; }
 
         /// <summary>
-        /// Gets or sets the calculation method to be used for this element.
-        /// The default value is "LinearRegression".
+        /// Gets or sets the calculation method to be used for this element (e.g., "LinearRegression").
+        /// Consumers can use this hint to select an appropriate calibration or quantification strategy.
         /// </summary>
         public string Method { get; set; } = "LinearRegression";
 

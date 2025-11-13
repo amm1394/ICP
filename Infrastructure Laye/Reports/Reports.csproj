@@ -6,4 +6,17 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="QuestPDF" Version="2025.7.4" />
+    <PackageReference Include="ScottPlot" Version="5.1.57" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core Layer\Icp.Domain\Domain.csproj" />
+    <ProjectReference Include="..\..\Shared Layer\Constants\Constants.csproj" />
+    <ProjectReference Include="..\..\Shared Layer\DTOs\DTOs.csproj" />
+  </ItemGroup>
+
 </Project>

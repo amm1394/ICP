@@ -4,8 +4,12 @@ using Core.Icp.Domain.Entities.Projects;
 namespace Core.Icp.Domain.Entities.Elements
 {
     /// <summary>
-    /// Represents a calibration curve for a specific element, used to determine concentration from signal intensity.
+    /// Represents a calibration curve for a specific element, used to convert instrument signal intensity to concentration.
     /// </summary>
+    /// <remarks>
+    /// The curve is typically derived from a set of calibration points with known concentrations.
+    /// Linear regression parameters (slope and intercept) and the goodness of fit (R²) are stored here.
+    /// </remarks>
     public class CalibrationCurve : BaseEntity
     {
         /// <summary>
@@ -19,7 +23,7 @@ namespace Core.Icp.Domain.Entities.Elements
         public Guid ProjectId { get; set; }
 
         /// <summary>
-        /// Gets or sets the date and time when the calibration was performed.
+        /// Gets or sets the date and time when the calibration was performed (UTC).
         /// </summary>
         public DateTime CalibrationDate { get; set; }
 
@@ -35,6 +39,7 @@ namespace Core.Icp.Domain.Entities.Elements
 
         /// <summary>
         /// Gets or sets the R-squared value (coefficient of determination), indicating the goodness of fit of the curve.
+        /// Typical values close to 1.0 indicate good linearity.
         /// </summary>
         public decimal RSquared { get; set; }
 
@@ -45,12 +50,12 @@ namespace Core.Icp.Domain.Entities.Elements
 
         // Navigation Properties
         /// <summary>
-        /// Gets or sets the navigation property to the associated Element entity.
+        /// Gets or sets the navigation property to the associated <see cref="Element"/> entity.
         /// </summary>
         public Element Element { get; set; } = null!;
 
         /// <summary>
-        /// Gets or sets the navigation property to the associated Project entity.
+        /// Gets or sets the navigation property to the associated <see cref="Project"/> entity.
         /// </summary>
         public Project Project { get; set; } = null!;
 

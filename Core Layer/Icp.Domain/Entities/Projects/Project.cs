@@ -7,8 +7,12 @@ using System.Text.Json;
 namespace Core.Icp.Domain.Entities.Projects
 {
     /// <summary>
-    /// Represents an analysis project, which groups together samples, calibrations, and settings.
+    /// Represents an analysis project which groups together samples, calibrations, and configuration settings.
     /// </summary>
+    /// <remarks>
+    /// A project acts as a container for related analytical work. It tracks progress, status, and provides
+    /// convenience helpers for counts, progress, and settings management.
+    /// </remarks>
     public class Project : BaseEntity
     {
         /// <summary>
@@ -27,17 +31,17 @@ namespace Core.Icp.Domain.Entities.Projects
         public string? SourceFileName { get; set; }
 
         /// <summary>
-        /// Gets or sets the date and time when the project was started.
+        /// Gets or sets the date and time when the project was started (UTC).
         /// </summary>
         public DateTime StartDate { get; set; } = DateTime.UtcNow;
 
         /// <summary>
-        /// Gets or sets the date and time when the project was completed.
+        /// Gets or sets the date and time when the project was completed (UTC).
         /// </summary>
         public DateTime? EndDate { get; set; }
 
         /// <summary>
-        /// Gets or sets the current status of the project (e.g., InProgress, Completed).
+        /// Gets or sets the current status of the project.
         /// </summary>
         public ProjectStatus Status { get; set; } = ProjectStatus.Created;
 
@@ -88,7 +92,7 @@ namespace Core.Icp.Domain.Entities.Projects
         public int PendingSamples => Samples?.Count(s => s.Status == SampleStatus.Pending) ?? 0;
 
         /// <summary>
-        /// Gets the progress percentage of the project (0-100).
+        /// Gets the progress percentage of the project (0-100), based on processed vs total samples.
         /// </summary>
         public double ProgressPercentage
         {
@@ -100,7 +104,7 @@ namespace Core.Icp.Domain.Entities.Projects
         }
 
         /// <summary>
-        /// Gets the duration of the project in days.
+        /// Gets the duration of the project, in days.
         /// </summary>
         public int? DurationInDays
         {
@@ -115,12 +119,12 @@ namespace Core.Icp.Domain.Entities.Projects
         }
 
         /// <summary>
-        /// Gets whether the project is completed.
+        /// Gets whether the project is completed (Approved or Archived).
         /// </summary>
         public bool IsCompleted => Status == ProjectStatus.Approved || Status == ProjectStatus.Archived;
 
         /// <summary>
-        /// Gets whether the project is active.
+        /// Gets whether the project is active (Processing or UnderQualityCheck).
         /// </summary>
         public bool IsActive => Status == ProjectStatus.Processing || Status == ProjectStatus.UnderQualityCheck;
 
