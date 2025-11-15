@@ -1,4 +1,5 @@
-﻿using Infrastructure.Icp.Reports.Models;
+﻿using Core.Icp.Domain.Enums;
+using Infrastructure.Icp.Reports.Models;
 using Infrastructure.Icp.Reports.Models.Configurations;
 using Shared.Icp.DTOs.Reports;
 

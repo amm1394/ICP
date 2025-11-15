@@ -31,6 +31,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "API", "Presentation Layer\A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Exceptions", "Shared Layer\Exception\Exceptions.csproj", "{44F3DB15-9F62-1EAA-A85B-40F8DE13705F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Application", "Core Layer\Application\Application.csproj", "{B98AFA03-2B8F-4C4F-9AE2-FFD672115156}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -77,6 +79,10 @@ Global
 		{44F3DB15-9F62-1EAA-A85B-40F8DE13705F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{44F3DB15-9F62-1EAA-A85B-40F8DE13705F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{44F3DB15-9F62-1EAA-A85B-40F8DE13705F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B98AFA03-2B8F-4C4F-9AE2-FFD672115156}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B98AFA03-2B8F-4C4F-9AE2-FFD672115156}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B98AFA03-2B8F-4C4F-9AE2-FFD672115156}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B98AFA03-2B8F-4C4F-9AE2-FFD672115156}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -92,6 +98,7 @@ Global
 		{2EA6C953-E7F8-1555-C8F5-B991559BF8F6} = {5B928501-00B4-44E0-BC27-187FF1568A6B}
 		{CA736662-2016-4DCE-AF03-8EBE2BAAB71A} = {2BCED5A9-1F03-4DFB-B5A7-E22A5E1FC7CF}
 		{44F3DB15-9F62-1EAA-A85B-40F8DE13705F} = {5B928501-00B4-44E0-BC27-187FF1568A6B}
+		{B98AFA03-2B8F-4C4F-9AE2-FFD672115156} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {08305504-7B2B-4308-A903-2DF88E152148}

@@ -4,7 +4,6 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,10 +15,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Presentation Layer\API\API.csproj" />
+    <ProjectReference Include="..\..\Core Layer\Icp.Domain\Domain.csproj" />
     <ProjectReference Include="..\..\Shared Layer\Exception\Exceptions.csproj" />
     <ProjectReference Include="..\..\Shared Layer\Helpers\Helpers.csproj" />
-    <ProjectReference Include="..\Data\Data.csproj" />
   </ItemGroup>
 
 </Project>

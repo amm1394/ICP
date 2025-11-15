@@ -1,7 +1,9 @@
-﻿using Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
+﻿using Core.Icp.Application;
+using Infrastructure.Data;
+using Infrastructure.Icp.Files;
 using Presentation.Icp.API.Middleware;
 using System.Text.Json.Serialization;
+
 
 // Program bootstrap for the ICP Analysis API.
 // This file wires up dependency injection, configures JSON, Swagger, CORS, and the HTTP middleware pipeline.
@@ -40,7 +42,16 @@ builder.Services.AddSwaggerGen(c =>
 
 // Register Infrastructure Data Layer (DbContext, repositories, Unit of Work)
 // The DI extension configures the SQL Server provider and migrations assembly
+// Register Infrastructure Data Layer (DbContext, repositories, Unit of Work)
 builder.Services.AddInfrastructureData(builder.Configuration);
+
+// Register Files layer (پردازش CSV/Excel)
+builder.Services.AddInfrastructureFiles();
+
+// Register Application layer (سرویس‌های دامنه / use case ها)
+builder.Services.AddApplication();
+
+builder.Services.AddHealthChecks();
 
 // Configure CORS policies
 // - "AllowAll": Development-friendly policy (any origin/method/header). Do NOT use in production.
