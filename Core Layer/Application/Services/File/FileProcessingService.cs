@@ -1,4 +1,11 @@
-﻿using Core.Icp.Domain.Entities.Projects;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Core.Icp.Domain.Entities.Elements;
+using Core.Icp.Domain.Entities.Projects;
 using Core.Icp.Domain.Entities.Samples;
 using Core.Icp.Domain.Interfaces.Repositories;
 using Core.Icp.Domain.Interfaces.Services;
@@ -9,8 +16,8 @@ using Shared.Icp.Exceptions;
 namespace Core.Icp.Application.Services.Files
 {
     /// <summary>
-    /// پیاده‌سازی سطح بالا برای پردازش فایل‌ها (CSV/Excel)
-    /// با استفاده از پردازش‌گرهای Files و UnitOfWork برای ذخیره در DB.
+    /// سرویس سطح Application برای ایمپورت فایل‌های ICP (CSV / Excel)
+    /// و ساخت Project / Sample / Measurement در دیتابیس.
     /// </summary>
     public class FileProcessingService : IFileProcessingService
     {
@@ -33,8 +40,7 @@ namespace Core.Icp.Application.Services.Files
             string projectName,
             CancellationToken cancellationToken = default)
         {
-            // ۱. ایمپورت فایل با استفاده از CsvFileProcessor
-            FileImportResult importResult = await _csvFileProcessor.ImportSamplesAsync(filePath);
+            var importResult = await _csvFileProcessor.ImportSamplesAsync(filePath);
 
             if (!importResult.Success)
             {
@@ -55,8 +61,7 @@ namespace Core.Icp.Application.Services.Files
             string? sheetName = null,
             CancellationToken cancellationToken = default)
         {
-            // ۱. ایمپورت فایل با استفاده از ExcelFileProcessor
-            FileImportResult importResult = await _excelFileProcessor.ImportSamplesAsync(filePath);
+            var importResult = await _excelFileProcessor.ImportSamplesAsync(filePath);
 
             if (!importResult.Success)
             {
@@ -77,15 +82,10 @@ namespace Core.Icp.Application.Services.Files
         {
             var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-            FileImportResult result;
-            if (extension == ".csv")
-            {
-                result = await _csvFileProcessor.ImportSamplesAsync(filePath);
-            }
-            else
-            {
-                result = await _excelFileProcessor.ImportSamplesAsync(filePath);
-            }
+            FileImportResult result =
+                extension == ".csv"
+                    ? await _csvFileProcessor.ImportSamplesAsync(filePath)
+                    : await _excelFileProcessor.ImportSamplesAsync(filePath);
 
             return result.Success;
         }
@@ -96,15 +96,10 @@ namespace Core.Icp.Application.Services.Files
         {
             var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-            FileImportResult result;
-            if (extension == ".csv")
-            {
-                result = await _csvFileProcessor.ImportSamplesAsync(filePath);
-            }
-            else
-            {
-                result = await _excelFileProcessor.ImportSamplesAsync(filePath);
-            }
+            FileImportResult result =
+                extension == ".csv"
+                    ? await _csvFileProcessor.ImportSamplesAsync(filePath)
+                    : await _excelFileProcessor.ImportSamplesAsync(filePath);
 
             if (!result.Success)
             {
@@ -116,7 +111,7 @@ namespace Core.Icp.Application.Services.Files
         }
 
         /// <summary>
-        /// ساخت Project و ذخیره Samples در دیتابیس.
+        /// ساخت Project و اتصال Sample/Measurement با نگاشت خودکار Element ها.
         /// </summary>
         private async Task<Project> CreateProjectWithSamplesAsync(
             string projectName,
@@ -124,26 +119,144 @@ namespace Core.Icp.Application.Services.Files
             FileImportResult importResult,
             CancellationToken cancellationToken)
         {
-            // ساخت پروژه جدید
+            var sampleList = samples.ToList();
+
+            // ۱) برای همه‌ی ElementSymbolها، Element متناظر را یا از DB می‌گیریم،
+            //    یا اگر نبود، به‌صورت خودکار می‌سازیم.
+            var elementMap = await EnsureElementsForSamplesAsync(
+                sampleList,
+                cancellationToken);
+
+            // ۲) ساخت پروژه جدید
             var project = new Project
             {
                 Name = projectName,
                 Description = $"ایمپورت از فایل در تاریخ {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}",
                 CreatedAt = DateTime.UtcNow,
-                Status = Core.Icp.Domain.Enums.ProjectStatus.Active
+                Status = Core.Icp.Domain.Enums.ProjectStatus.Active,
+                Samples = new List<Sample>()
             };
 
-            // ارتباط دادن Sampleها به پروژه
-            foreach (var sample in samples)
+            // ۳) نگاشت Samples و Measurements
+            foreach (var sample in sampleList)
             {
+                // اتصال Sample به Project
                 sample.Project = project;
+                sample.ProjectId = project.Id; // اگر Project از BaseEntity با Id استفاده می‌کند
                 project.Samples.Add(sample);
+
+                if (sample.Measurements == null || sample.Measurements.Count == 0)
+                    continue;
+
+                foreach (var measurement in sample.Measurements.ToList())
+                {
+                    var symbol = measurement.ElementSymbol?.Trim();
+
+                    // اگر سمبل خالی یا null بود، این Measurement را نادیده می‌گیریم
+                    if (string.IsNullOrWhiteSpace(symbol))
+                    {
+                        sample.Measurements.Remove(measurement);
+                        continue;
+                    }
+
+                    if (!elementMap.TryGetValue(symbol, out var element))
+                    {
+                        // طبق EnsureElementsForSamplesAsync نباید رخ بدهد،
+                        // ولی به صورت دفاعی حذفش می‌کنیم.
+                        sample.Measurements.Remove(measurement);
+                        continue;
+                    }
+
+                    measurement.Sample = sample;
+                    measurement.SampleId = sample.Id;
+
+                    measurement.Element = element;
+                    measurement.ElementId = element.Id;
+
+                    // هم‌راستا با طراحی Domain: ElementSymbol در Measurement نگه می‌داریم
+                    measurement.ElementSymbol = element.Symbol;
+                }
             }
 
+            // ۴) ذخیره در DB
             await _unitOfWork.Projects.AddAsync(project, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return project;
+        }
+
+        /// <summary>
+        /// برای تمام ElementSymbolهای استفاده‌شده در Samples:
+        /// - عناصر موجود را از دیتابیس می‌خواند
+        /// - برای نمادهای مفقود، Element جدید با AtomicNumber منحصربه‌فرد می‌سازد
+        /// - در نهایت دیکشنری Symbol → Element را برمی‌گرداند.
+        /// </summary>
+        private async Task<Dictionary<string, Element>> EnsureElementsForSamplesAsync(
+            IEnumerable<Sample> samples,
+            CancellationToken cancellationToken)
+        {
+            var symbolSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var sample in samples)
+            {
+                if (sample.Measurements == null) continue;
+
+                foreach (var measurement in sample.Measurements)
+                {
+                    var symbol = measurement.ElementSymbol?.Trim();
+                    if (!string.IsNullOrWhiteSpace(symbol))
+                        symbolSet.Add(symbol);
+                }
+            }
+
+            var elementMap = new Dictionary<string, Element>(StringComparer.OrdinalIgnoreCase);
+
+            if (symbolSet.Count == 0)
+                return elementMap;
+
+            // ۱) عناصر موجود در DB را می‌خوانیم
+            var existingElements = await _unitOfWork.Elements
+                .GetBySymbolsAsync(symbolSet, cancellationToken);
+
+            foreach (var element in existingElements)
+            {
+                if (!string.IsNullOrWhiteSpace(element.Symbol) &&
+                    !elementMap.ContainsKey(element.Symbol))
+                {
+                    elementMap[element.Symbol] = element;
+                }
+            }
+
+            // ۲) سمبل‌های مفقود را پیدا می‌کنیم
+            var missingSymbols = symbolSet
+                .Where(s => !elementMap.ContainsKey(s))
+                .ToList();
+
+            if (missingSymbols.Count == 0)
+                return elementMap;
+
+            // ۳) یک AtomicNumber یکتا برای عناصر جدید در نظر می‌گیریم
+            var maxAtomic = await _unitOfWork.Elements.GetMaxAtomicNumberAsync(cancellationToken);
+            // اگر همه 0 بودند، از 1 شروع می‌کنیم
+            var nextAtomic = maxAtomic <= 0 ? 1 : maxAtomic + 1;
+
+            foreach (var symbol in missingSymbols)
+            {
+                var newElement = new Element
+                {
+                    Id = Guid.NewGuid(),
+                    Symbol = symbol,
+                    Name = symbol,          // فعلاً خودش، بعداً می‌توانی اسم کامل را در UI ویرایش کنی
+                    AtomicNumber = nextAtomic++,
+                    IsActive = true
+                };
+
+                await _unitOfWork.Elements.AddAsync(newElement, cancellationToken);
+                elementMap[symbol] = newElement;
+            }
+
+            // SaveChanges اینجا نیاز نیست؛ در CreateProjectWithSamplesAsync روی UnitOfWork انجام می‌شود.
+            return elementMap;
         }
     }
 }
