@@ -1,4 +1,9 @@
-﻿using Core.Icp.Domain.Entities.Projects;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Core.Icp.Domain.Entities.Projects;
 using Core.Icp.Domain.Enums;
 using Core.Icp.Domain.Interfaces.Repositories;
 using Infrastructure.Icp.Data.Context;
@@ -6,20 +11,48 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.Icp.Data.Repositories
 {
-    /// <summary>
-    ///     Repository for Project entities, extending the base repository.
-    /// </summary>
     public class ProjectRepository : BaseRepository<Project>, IProjectRepository
     {
-        /// <summary>
-        ///     Initializes a new instance of the <see cref="ProjectRepository" /> class.
-        /// </summary>
-        /// <param name="context">The database context.</param>
         public ProjectRepository(ICPDbContext context) : base(context)
         {
         }
 
-        /// <inheritdoc />
+        public async Task<(IReadOnlyList<Project> Items, int TotalCount)> GetPagedAsync(
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            if (pageNumber <= 0) pageNumber = 1;
+            if (pageSize <= 0) pageSize = 20;
+
+            var query = _dbSet
+                .Where(p => !p.IsDeleted)
+                .OrderByDescending(p => p.CreatedAt);
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .Include(p => p.Samples)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
+
+        public async Task<IEnumerable<Project>> GetRecentProjectsAsync(
+            int count,
+            CancellationToken cancellationToken = default)
+        {
+            if (count <= 0) count = 10;
+
+            return await _dbSet
+                .Where(p => !p.IsDeleted)
+                .OrderByDescending(p => p.CreatedAt)
+                .Take(count)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<IEnumerable<Project>> GetByStatusAsync(
             ProjectStatus status,
             CancellationToken cancellationToken = default)
@@ -30,17 +63,25 @@ namespace Infrastructure.Icp.Data.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        /// <inheritdoc />
         public async Task<Project?> GetWithSamplesAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
             return await _dbSet
                 .Include(p => p.Samples)
-                .FirstOrDefaultAsync(p => !p.IsDeleted && p.Id == id, cancellationToken);
+                .FirstOrDefaultAsync(
+                    p => !p.IsDeleted && p.Id == id,
+                    cancellationToken);
         }
 
-        /// <inheritdoc />
+        public async Task<Project?> GetByIdWithSamplesAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            // می‌تونی همین متد را دوباره استفاده کنی
+            return await GetWithSamplesAsync(id, cancellationToken);
+        }
+
         public async Task<Project?> GetWithFullDetailsAsync(
             Guid id,
             CancellationToken cancellationToken = default)
@@ -48,24 +89,9 @@ namespace Infrastructure.Icp.Data.Repositories
             return await _dbSet
                 .Include(p => p.Samples)
                     .ThenInclude(s => s.Measurements)
-                        .ThenInclude(m => m.Element)
-                .Include(p => p.Samples)
-                    .ThenInclude(s => s.QualityChecks)
-                .Include(p => p.CalibrationCurves)
-                    .ThenInclude(c => c.Points) // Corrected from CalibrationPoints to Points
-                .FirstOrDefaultAsync(p => !p.IsDeleted && p.Id == id, cancellationToken);
-        }
-
-        /// <inheritdoc />
-        public async Task<IEnumerable<Project>> GetRecentProjectsAsync(
-            int count,
-            CancellationToken cancellationToken = default)
-        {
-            return await _dbSet
-                .Where(p => !p.IsDeleted)
-                .OrderByDescending(p => p.CreatedAt)
-                .Take(count)
-                .ToListAsync(cancellationToken);
+                .FirstOrDefaultAsync(
+                    p => !p.IsDeleted && p.Id == id,
+                    cancellationToken);
         }
     }
 }

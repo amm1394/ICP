@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Core.Icp.Domain.Entities.Elements;
+﻿using Core.Icp.Domain.Entities.Elements;
 using Core.Icp.Domain.Entities.Projects;
 using Core.Icp.Domain.Entities.Samples;
 using Core.Icp.Domain.Interfaces.Repositories;
 using Core.Icp.Domain.Interfaces.Services;
+using Core.Icp.Domain.Models.Files;
 using Infrastructure.Icp.Files.Interfaces;
 using Infrastructure.Icp.Files.Models;
 using Shared.Icp.Exceptions;
@@ -35,7 +30,9 @@ namespace Core.Icp.Application.Services.Files
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<Project> ImportCsvAsync(
+        #region Import Methods
+
+        public async Task<ProjectImportResult> ImportCsvAsync(
             string filePath,
             string projectName,
             CancellationToken cancellationToken = default)
@@ -44,18 +41,21 @@ namespace Core.Icp.Application.Services.Files
 
             if (!importResult.Success)
             {
+                // خطای Validation/Parsing سطح فایل
                 throw new FileProcessingException(
                     $"ایمپورت CSV ناموفق بود: {importResult.Message}");
             }
 
-            return await CreateProjectWithSamplesAsync(
+            var project = await CreateProjectWithSamplesAsync(
                 projectName,
                 importResult.Samples,
                 importResult,
                 cancellationToken);
+
+            return MapToProjectImportResult(project, importResult);
         }
 
-        public async Task<Project> ImportExcelAsync(
+        public async Task<ProjectImportResult> ImportExcelAsync(
             string filePath,
             string projectName,
             string? sheetName = null,
@@ -69,12 +69,18 @@ namespace Core.Icp.Application.Services.Files
                     $"ایمپورت Excel ناموفق بود: {importResult.Message}");
             }
 
-            return await CreateProjectWithSamplesAsync(
+            var project = await CreateProjectWithSamplesAsync(
                 projectName,
                 importResult.Samples,
                 importResult,
                 cancellationToken);
+
+            return MapToProjectImportResult(project, importResult);
         }
+
+        #endregion
+
+        #region Validation / Extraction
 
         public async Task<bool> ValidateFileAsync(
             string filePath,
@@ -110,6 +116,10 @@ namespace Core.Icp.Application.Services.Files
             return result.Samples;
         }
 
+        #endregion
+
+        #region Core Project Creation
+
         /// <summary>
         /// ساخت Project و اتصال Sample/Measurement با نگاشت خودکار Element ها.
         /// </summary>
@@ -142,7 +152,7 @@ namespace Core.Icp.Application.Services.Files
             {
                 // اتصال Sample به Project
                 sample.Project = project;
-                sample.ProjectId = project.Id; // اگر Project از BaseEntity با Id استفاده می‌کند
+                sample.ProjectId = project.Id;
                 project.Samples.Add(sample);
 
                 if (sample.Measurements == null || sample.Measurements.Count == 0)
@@ -258,5 +268,39 @@ namespace Core.Icp.Application.Services.Files
             // SaveChanges اینجا نیاز نیست؛ در CreateProjectWithSamplesAsync روی UnitOfWork انجام می‌شود.
             return elementMap;
         }
+
+        #endregion
+
+        #region Mapping Helpers
+
+        /// <summary>
+        /// ترکیب خروجی فایل (FileImportResult) و پروژه‌ی ساخته‌شده
+        /// و تولید یک ProjectImportResult سطح Application/Domain.
+        /// </summary>
+        private static ProjectImportResult MapToProjectImportResult(
+            Project project,
+            FileImportResult importResult)
+        {
+            var totalSamples = project.Samples?.Count ?? 0;
+
+            var result = new ProjectImportResult
+            {
+                Project = project,
+                Success = importResult.Success,
+                Message = importResult.Message,
+                TotalRecords = importResult.TotalRecords,
+                SuccessfulRecords = importResult.SuccessfulRecords,
+                FailedRecords = importResult.FailedRecords,
+                TotalSamples = totalSamples,
+                // فعلاً لیست خطا/هشدار را خالی می‌گذاریم؛
+                // در صورت نیاز می‌توان آن‌ها را از ValidationResult برداشت.
+                Errors = new List<string>(),
+                Warnings = new List<string>()
+            };
+
+            return result;
+        }
+
+        #endregion
     }
 }

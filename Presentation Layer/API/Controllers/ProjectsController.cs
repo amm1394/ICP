@@ -1,16 +1,9 @@
-﻿using Core.Icp.Domain.Entities.Projects;
+﻿using Core.Icp.Domain.Interfaces.Repositories;
 using Core.Icp.Domain.Interfaces.Services;
-using Microsoft.AspNetCore.Http;
+using Core.Icp.Domain.Models.Files;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Presentation.Icp.API.Models;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using Presentation.Icp.API.Models.Projects;
 
 namespace Presentation.Icp.API.Controllers
 {
@@ -19,13 +12,16 @@ namespace Presentation.Icp.API.Controllers
     public class ProjectsController : ControllerBase
     {
         private readonly IFileProcessingService _fileProcessingService;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<ProjectsController> _logger;
 
         public ProjectsController(
             IFileProcessingService fileProcessingService,
+            IUnitOfWork unitOfWork,
             ILogger<ProjectsController> logger)
         {
             _fileProcessingService = fileProcessingService;
+            _unitOfWork = unitOfWork;
             _logger = logger;
         }
 
@@ -33,61 +29,32 @@ namespace Presentation.Icp.API.Controllers
         [Consumes("multipart/form-data")]
         [RequestSizeLimit(100 * 1024 * 1024)] // 100 MB
         [ProducesResponseType(typeof(ApiResponse<FileImportResultDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<FileImportResultDto>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<FileImportResultDto>), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<ActionResult<ApiResponse<FileImportResultDto>>> ImportProject(
             [FromForm] ProjectImportRequest request,
             CancellationToken cancellationToken)
         {
-            // 1) ولیدیشن سطح ModelState (در صورتی که DataAnnotation اضافه شود)
-            if (!ModelState.IsValid)
-            {
-                var validationErrors = ModelState
-                    .Where(x => x.Value?.Errors.Count > 0)
-                    .ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
-                    );
-
-                return BadRequest(ApiResponse<FileImportResultDto>
-                    .FailureResponse("ورودی نامعتبر است.", validationErrors));
-            }
-
             var file = request.File;
-            var projectName = request.ProjectName?.Trim();
+            var projectName = request.ProjectName;
 
-            // 2) ولیدیشن دستی فایل
             if (file == null || file.Length == 0)
             {
                 return BadRequest(ApiResponse<FileImportResultDto>
                     .FailureResponse("فایلی ارسال نشده یا فایل خالی است."));
             }
 
-            // 3) ولیدیشن نام پروژه
             if (string.IsNullOrWhiteSpace(projectName))
             {
-                var errors = new Dictionary<string, string[]>
-                {
-                    ["projectName"] = new[] { "نام پروژه الزامی است." }
-                };
-
                 return BadRequest(ApiResponse<FileImportResultDto>
-                    .FailureResponse("ورودی نامعتبر است.", errors));
+                    .FailureResponse("نام پروژه الزامی است."));
             }
 
-            var tempFileName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
+            var tempFileName = $"{Guid.NewGuid()}_{file.FileName}";
             var tempFilePath = Path.Combine(Path.GetTempPath(), tempFileName);
 
             try
             {
-                // 4) ذخیره فایل روی دیسک به صورت async
-                await using (var stream = new FileStream(
-                                 tempFilePath,
-                                 FileMode.Create,
-                                 FileAccess.Write,
-                                 FileShare.None,
-                                 81920,
-                                 useAsync: true))
+                await using (var stream = System.IO.File.Create(tempFilePath))
                 {
                     await file.CopyToAsync(stream, cancellationToken);
                 }
@@ -99,96 +66,46 @@ namespace Presentation.Icp.API.Controllers
 
                 var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
 
-                Project project;
+                ProjectImportResult importResult;
 
-                // 5) انتخاب متد ایمپورت بر اساس پسوند فایل
-                switch (extension)
+                if (extension == ".csv")
                 {
-                    case ".csv":
-                        project = await _fileProcessingService.ImportCsvAsync(
-                            tempFilePath,
-                            projectName!,
-                            cancellationToken);
-                        break;
-
-                    case ".xlsx":
-                    case ".xls":
-                        project = await _fileProcessingService.ImportExcelAsync(
-                            tempFilePath,
-                            projectName!,
-                            null,
-                            cancellationToken);
-                        break;
-
-                    default:
-                        return BadRequest(ApiResponse<FileImportResultDto>
-                            .FailureResponse("نوع فایل پشتیبانی نمی‌شود. فقط CSV و Excel مجاز است."));
+                    importResult = await _fileProcessingService.ImportCsvAsync(
+                        tempFilePath,
+                        projectName,
+                        cancellationToken);
+                }
+                else if (extension == ".xlsx" || extension == ".xls")
+                {
+                    importResult = await _fileProcessingService.ImportExcelAsync(
+                        tempFilePath,
+                        projectName,
+                        null,
+                        cancellationToken);
+                }
+                else
+                {
+                    return BadRequest(ApiResponse<FileImportResultDto>
+                        .FailureResponse("نوع فایل پشتیبانی نمی‌شود. فقط CSV و Excel مجاز است."));
                 }
 
-                if (project == null)
-                {
-                    // اگر سرویس null برگرداند، یعنی مشکل جدی پیش آمده
-                    return StatusCode(
-                        StatusCodes.Status500InternalServerError,
-                        ApiResponse<FileImportResultDto>.FailureResponse(
-                            "ایمپورت فایل با شکست مواجه شد. پروژه‌ای ایجاد نشد."));
-                }
+                var project = importResult.Project;
 
-                // 6) ساخت DTO خروجی
                 var resultDto = new FileImportResultDto
                 {
                     ProjectId = project.Id,
                     ProjectName = project.Name,
-                    Success = true,
-                    Message = "ایمپورت فایل با موفقیت انجام شد.",
-                    TotalSamples = project.Samples?.Count ?? 0,
-                    // TODO: وقتی منطق ایمپورت رکوردی را کامل کردی، این‌ها را از سرویس پر کن
-                    TotalRecords = 0,
-                    SuccessfulRecords = 0,
-                    FailedRecords = 0,
-                    Errors = new List<string>(),
-                    Warnings = new List<string>()
+                    Success = importResult.Success,
+                    Message = importResult.Message,
+                    TotalRecords = importResult.TotalRecords,
+                    SuccessfulRecords = importResult.SuccessfulRecords,
+                    FailedRecords = importResult.FailedRecords,
+                    TotalSamples = importResult.TotalSamples,
+                    Errors = importResult.Errors,
+                    Warnings = importResult.Warnings
                 };
 
                 return Ok(ApiResponse<FileImportResultDto>.SuccessResponse(resultDto));
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex,
-                    "Database error while importing project from file {FileName}",
-                    file.FileName);
-
-                var baseMessage = "در هنگام ذخیره‌سازی داده‌ها خطای پایگاه‌داده رخ داد.";
-                Dictionary<string, string[]>? errors = null;
-
-                // تشخیص خاص FK مربوط به ElementId
-                if (ex.InnerException != null &&
-                    ex.InnerException.Message.Contains("FK_Measurements_Elements_ElementId",
-                                                       StringComparison.OrdinalIgnoreCase))
-                {
-                    baseMessage =
-                        "خطای پایگاه‌داده: برخی از عناصر شیمیایی (Elements) در سیستم تعریف نشده‌اند یا شناسه آن‌ها نامعتبر است.";
-                    errors = new Dictionary<string, string[]>
-                    {
-                        ["ElementId"] = new[]
-                        {
-                            "شناسه عنصر شیمیایی معتبر نیست یا در جدول Elements تعریف نشده است."
-                        }
-                    };
-                }
-
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    ApiResponse<FileImportResultDto>.FailureResponse(baseMessage, errors));
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogWarning(
-                    "Import of project from file {FileName} was cancelled",
-                    file.FileName);
-
-                return BadRequest(ApiResponse<FileImportResultDto>
-                    .FailureResponse("عملیات ایمپورت توسط کاربر یا سرور لغو شد."));
             }
             catch (Exception ex)
             {
@@ -196,28 +113,93 @@ namespace Presentation.Icp.API.Controllers
                     "Unexpected error while importing project from file {FileName}",
                     file.FileName);
 
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    ApiResponse<FileImportResultDto>.FailureResponse(
-                        "در هنگام پردازش فایل خطای غیرمنتظره‌ای رخ داد."));
+                var errorResponse = ApiResponse<FileImportResultDto>.FailureResponse(
+                    "خطای غیرمنتظره در هنگام ایمپورت پروژه رخ داد.");
+
+                return StatusCode(StatusCodes.Status500InternalServerError, errorResponse);
             }
             finally
             {
-                // 7) پاک کردن فایل موقتی، حتی در صورت خطا
-                try
+                if (System.IO.File.Exists(tempFilePath))
                 {
-                    if (System.IO.File.Exists(tempFilePath))
-                    {
-                        System.IO.File.Delete(tempFilePath);
-                    }
-                }
-                catch (Exception cleanupEx)
-                {
-                    _logger.LogWarning(cleanupEx,
-                        "Could not delete temp file {Path}",
-                        tempFilePath);
+                    System.IO.File.Delete(tempFilePath);
                 }
             }
         }
+
+
+        #region Get Paged Projects
+
+        [HttpGet]
+        [ProducesResponseType(typeof(PagedApiResponse<ProjectSummaryDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<PagedApiResponse<ProjectSummaryDto>>> GetProjects(
+            int pageNumber = 1,
+            int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            if (pageNumber <= 0) pageNumber = 1;
+            if (pageSize <= 0) pageSize = 20;
+
+            var (projects, totalCount) =
+                await _unitOfWork.Projects.GetPagedAsync(pageNumber, pageSize, cancellationToken);
+
+            var items = projects
+                .Select(p => new ProjectSummaryDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    Status = p.Status.ToString(),
+                    CreatedAt = p.CreatedAt,
+                    SampleCount = p.Samples?.Count ?? 0
+                })
+                .ToList();
+
+            var response = PagedApiResponse<ProjectSummaryDto>.SuccessResponse(
+                items,
+                totalCount,
+                pageNumber,
+                pageSize,
+                "فهرست پروژه‌ها با موفقیت بازیابی شد.");
+
+            // توجه: TotalPages, HasPrevious, HasNext فقط getter هستند،
+            // اینجا هیچ انتسابی به آن‌ها نداریم (اشکال CS0200 رفع می‌شود).
+            return Ok(response);
+        }
+
+        #endregion
+
+        #region Get Project By Id (with samples count)
+
+        [HttpGet("{id:guid}")]
+        [ProducesResponseType(typeof(ApiResponse<ProjectSummaryDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<ApiResponse<ProjectSummaryDto>>> GetProjectById(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            var project = await _unitOfWork.Projects
+                .GetByIdWithSamplesAsync(id, cancellationToken);
+
+            if (project == null)
+            {
+                return NotFound(ApiResponse<ProjectSummaryDto>
+                    .FailureResponse("پروژه موردنظر یافت نشد."));
+            }
+
+            var dto = new ProjectSummaryDto
+            {
+                Id = project.Id,
+                Name = project.Name,
+                Description = project.Description,
+                Status = project.Status.ToString(),
+                CreatedAt = project.CreatedAt,
+                SampleCount = project.Samples?.Count ?? 0
+            };
+
+            return Ok(ApiResponse<ProjectSummaryDto>.SuccessResponse(dto));
+        }
+
+        #endregion
     }
 }

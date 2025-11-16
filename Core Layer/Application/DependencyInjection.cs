@@ -19,6 +19,8 @@ public static class DependencyInjection
         // File Processing (Import CSV/Excel)
         services.AddScoped<IFileProcessingService, FileProcessingService>();
 
+        services.AddScoped<IProjectQueryService, ProjectQueryService>();
+
         return services;
     }
 }

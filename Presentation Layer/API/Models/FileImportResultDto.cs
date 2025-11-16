@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace Presentation.Icp.API.Models
+﻿namespace Presentation.Icp.API.Models
 {
     /// <summary>
     /// نتیجه سطح بالا برای ایمپورت فایل و ایجاد پروژه.
