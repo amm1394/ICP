@@ -51,7 +51,8 @@ namespace Infrastructure.Data.Configurations
                 .IsRequired();
 
             // Indexes
-            builder.HasIndex(s => s.SampleId).IsUnique();
+            // قبلاً SampleId یونیک بود؛ الان فقط ایندکس معمولی است تا اجازهٔ تکرار SampleId را داشته باشیم.
+            builder.HasIndex(s => s.SampleId);          // بدون IsUnique
             builder.HasIndex(s => s.ProjectId);
             builder.HasIndex(s => s.Status);
             builder.HasIndex(s => s.RunDate);

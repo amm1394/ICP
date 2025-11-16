@@ -89,18 +89,23 @@ namespace Presentation.Icp.API.Controllers
                         .FailureResponse("نوع فایل پشتیبانی نمی‌شود. فقط CSV و Excel مجاز است."));
                 }
 
-                var project = importResult.Project;
-
+                // بعد از این‌که importResult پر شد:
                 var resultDto = new FileImportResultDto
                 {
-                    ProjectId = project.Id,
-                    ProjectName = project.Name,
-                    Success = importResult.Success,
-                    Message = importResult.Message,
+                    ProjectId = importResult.Project.Id,
+                    ProjectName = importResult.Project.Name ?? string.Empty,
+
+                    Success = importResult.FailedRecords == 0 && importResult.Errors.Count == 0,
+
+                    Message = importResult.FailedRecords == 0
+                        ? "ایمپورت با موفقیت انجام شد."
+                        : "ایمپورت با هشدار/خطا انجام شد.",
+
                     TotalRecords = importResult.TotalRecords,
                     SuccessfulRecords = importResult.SuccessfulRecords,
                     FailedRecords = importResult.FailedRecords,
                     TotalSamples = importResult.TotalSamples,
+
                     Errors = importResult.Errors,
                     Warnings = importResult.Warnings
                 };
@@ -126,80 +131,5 @@ namespace Presentation.Icp.API.Controllers
                 }
             }
         }
-
-
-        #region Get Paged Projects
-
-        [HttpGet]
-        [ProducesResponseType(typeof(PagedApiResponse<ProjectSummaryDto>), StatusCodes.Status200OK)]
-        public async Task<ActionResult<PagedApiResponse<ProjectSummaryDto>>> GetProjects(
-            int pageNumber = 1,
-            int pageSize = 20,
-            CancellationToken cancellationToken = default)
-        {
-            if (pageNumber <= 0) pageNumber = 1;
-            if (pageSize <= 0) pageSize = 20;
-
-            var (projects, totalCount) =
-                await _unitOfWork.Projects.GetPagedAsync(pageNumber, pageSize, cancellationToken);
-
-            var items = projects
-                .Select(p => new ProjectSummaryDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Description = p.Description,
-                    Status = p.Status.ToString(),
-                    CreatedAt = p.CreatedAt,
-                    SampleCount = p.Samples?.Count ?? 0
-                })
-                .ToList();
-
-            var response = PagedApiResponse<ProjectSummaryDto>.SuccessResponse(
-                items,
-                totalCount,
-                pageNumber,
-                pageSize,
-                "فهرست پروژه‌ها با موفقیت بازیابی شد.");
-
-            // توجه: TotalPages, HasPrevious, HasNext فقط getter هستند،
-            // اینجا هیچ انتسابی به آن‌ها نداریم (اشکال CS0200 رفع می‌شود).
-            return Ok(response);
-        }
-
-        #endregion
-
-        #region Get Project By Id (with samples count)
-
-        [HttpGet("{id:guid}")]
-        [ProducesResponseType(typeof(ApiResponse<ProjectSummaryDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<ApiResponse<ProjectSummaryDto>>> GetProjectById(
-            Guid id,
-            CancellationToken cancellationToken = default)
-        {
-            var project = await _unitOfWork.Projects
-                .GetByIdWithSamplesAsync(id, cancellationToken);
-
-            if (project == null)
-            {
-                return NotFound(ApiResponse<ProjectSummaryDto>
-                    .FailureResponse("پروژه موردنظر یافت نشد."));
-            }
-
-            var dto = new ProjectSummaryDto
-            {
-                Id = project.Id,
-                Name = project.Name,
-                Description = project.Description,
-                Status = project.Status.ToString(),
-                CreatedAt = project.CreatedAt,
-                SampleCount = project.Samples?.Count ?? 0
-            };
-
-            return Ok(ApiResponse<ProjectSummaryDto>.SuccessResponse(dto));
-        }
-
-        #endregion
     }
 }

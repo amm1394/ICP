@@ -16,6 +16,11 @@
         public string ProjectName { get; set; } = string.Empty;
 
         /// <summary>
+        /// کد پروژه (در صورت وجود).
+        /// </summary>
+        public string? ProjectCode { get; set; }
+
+        /// <summary>
         /// وضعیت کلی عملیات ایمپورت (صرف‌نظر از خطاهای ردیفی).
         /// </summary>
         public bool Success { get; set; }
@@ -60,6 +65,7 @@
         public static FileImportResultDto CreateSuccess(
             Guid projectId,
             string projectName,
+            string? projectCode,
             int totalRecords,
             int successfulRecords,
             int failedRecords,
@@ -70,6 +76,7 @@
             {
                 ProjectId = projectId,
                 ProjectName = projectName,
+                ProjectCode = projectCode,
                 Success = true,
                 Message = "ایمپورت فایل با موفقیت انجام شد.",
                 TotalRecords = totalRecords,
@@ -89,6 +96,7 @@
             {
                 ProjectId = null,
                 ProjectName = string.Empty,
+                ProjectCode = null,
                 Success = false,
                 Message = message,
                 TotalRecords = 0,

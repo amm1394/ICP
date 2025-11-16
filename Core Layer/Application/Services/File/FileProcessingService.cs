@@ -88,7 +88,7 @@ namespace Core.Icp.Application.Services.Files
         {
             var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-            FileImportResult result =
+            Infrastructure.Icp.Files.Models.FileImportResult result =
                 extension == ".csv"
                     ? await _csvFileProcessor.ImportSamplesAsync(filePath)
                     : await _excelFileProcessor.ImportSamplesAsync(filePath);
@@ -102,7 +102,7 @@ namespace Core.Icp.Application.Services.Files
         {
             var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-            FileImportResult result =
+            Infrastructure.Icp.Files.Models.FileImportResult result =
                 extension == ".csv"
                     ? await _csvFileProcessor.ImportSamplesAsync(filePath)
                     : await _excelFileProcessor.ImportSamplesAsync(filePath);
@@ -126,7 +126,7 @@ namespace Core.Icp.Application.Services.Files
         private async Task<Project> CreateProjectWithSamplesAsync(
             string projectName,
             IEnumerable<Sample> samples,
-            FileImportResult importResult,
+            Infrastructure.Icp.Files.Models.FileImportResult importResult,
             CancellationToken cancellationToken)
         {
             var sampleList = samples.ToList();
@@ -279,7 +279,7 @@ namespace Core.Icp.Application.Services.Files
         /// </summary>
         private static ProjectImportResult MapToProjectImportResult(
             Project project,
-            FileImportResult importResult)
+            Infrastructure.Icp.Files.Models.FileImportResult importResult)
         {
             var totalSamples = project.Samples?.Count ?? 0;
 
@@ -302,5 +302,26 @@ namespace Core.Icp.Application.Services.Files
         }
 
         #endregion
+
+        private ProjectImportResult CreateProjectImportResult(
+            Project project,
+            int totalRecords,
+            int successfulRecords,
+            int failedRecords,
+            int totalSamples,
+            List<string> errors,
+            List<string> warnings)
+        {
+            return new ProjectImportResult
+            {
+                Project = project,
+                TotalRecords = totalRecords,
+                SuccessfulRecords = successfulRecords,
+                FailedRecords = failedRecords,
+                TotalSamples = totalSamples,
+                Errors = errors,
+                Warnings = warnings
+            };
+        }
     }
 }
