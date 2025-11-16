@@ -153,6 +153,29 @@ namespace Presentation.Icp.API.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// لیست پروژه‌های اخیر (برای داشبورد، بدون صفحه‌بندی).
+        /// </summary>
+        [HttpGet("recent")]
+        [ProducesResponseType(typeof(ApiResponse<List<ProjectSummaryDto>>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<ApiResponse<List<ProjectSummaryDto>>>> GetRecent(
+            [FromQuery] int count = 5)
+        {
+            if (count <= 0)
+                count = 5;
+
+            _logger.LogInformation("Retrieving {Count} most recent projects", count);
+
+            var projects = await _projectService.GetRecentProjectsAsync(count);
+            var items = projects.ToSummaryDtoList().ToList();
+
+            var response = ApiResponse<List<ProjectSummaryDto>>.SuccessResponse(
+                items,
+                "لیست پروژه‌های اخیر با موفقیت بازیابی شد");
+
+            return Ok(response);
+        }
+
         #endregion
 
         #region Import from file (CSV/Excel)
