@@ -1,69 +1,56 @@
-﻿using Core.Icp.Domain.Entities.QualityControl;
-using Core.Icp.Domain.Entities.Samples;
-using Core.Icp.Domain.Enums;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Core.Icp.Domain.Models.QualityControl;
 
 namespace Core.Icp.Domain.Interfaces.Services
 {
     /// <summary>
-    /// Defines the contract for a service that performs various quality control checks on samples.
+    /// سرویس کنترل کیفیت (QC) برای اجرای انواع چک روی پروژه‌ها.
     /// </summary>
     public interface IQualityControlService
     {
         /// <summary>
-        /// Asynchronously performs a weight check on a given sample.
+        /// اجرای Weight QC برای همه نمونه‌های یک پروژه.
         /// </summary>
-        /// <param name="sample">The sample to be checked.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the <see cref="QualityCheck"/> result.</returns>
-        Task<QualityCheck> PerformWeightCheckAsync(Sample sample);
+        Task<IReadOnlyList<QualityCheckResult>> RunWeightChecksAsync(
+            Guid projectId,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Asynchronously performs a volume check on a given sample.
+        /// اجرای Volume QC برای همه نمونه‌های یک پروژه.
         /// </summary>
-        /// <param name="sample">The sample to be checked.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the <see cref="QualityCheck"/> result.</returns>
-        Task<QualityCheck> PerformVolumeCheckAsync(Sample sample);
+        Task<IReadOnlyList<QualityCheckResult>> RunVolumeChecksAsync(
+            Guid projectId,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Asynchronously performs a dilution factor check on a given sample.
+        /// اجرای Dilution Factor QC برای همه نمونه‌های یک پروژه.
         /// </summary>
-        /// <param name="sample">The sample to be checked.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the <see cref="QualityCheck"/> result.</returns>
-        Task<QualityCheck> PerformDilutionFactorCheckAsync(Sample sample);
+        Task<IReadOnlyList<QualityCheckResult>> RunDilutionFactorChecksAsync(
+            Guid projectId,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Asynchronously performs a check for empty or blank values in a sample's data.
+        /// اجرای Empty QC برای همه نمونه‌های یک پروژه.
         /// </summary>
-        /// <param name="sample">The sample to be checked.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the <see cref="QualityCheck"/> result.</returns>
-        Task<QualityCheck> PerformEmptyCheckAsync(Sample sample);
+        Task<IReadOnlyList<QualityCheckResult>> RunEmptyChecksAsync(
+            Guid projectId,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Asynchronously performs a Certified Reference Material (CRM) check on a sample.
+        /// اجرای همه چک‌های پایه (Weight, Volume, Dilution, Empty) برای پروژه.
         /// </summary>
-        /// <param name="sample">The sample to be checked.</param>
-        /// <param name="crmId">The identifier of the CRM to check against.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the <see cref="QualityCheck"/> result.</returns>
-        Task<QualityCheck> PerformCRMCheckAsync(Sample sample, int crmId);
+        Task<IReadOnlyList<QualityCheckResult>> RunAllChecksAsync(
+            Guid projectId,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Asynchronously performs a drift calibration check on a sample to ensure instrument stability.
+        /// دریافت خلاصه نتایج QC برای یک پروژه (بر اساس همه چک‌های پایه).
         /// </summary>
-        /// <param name="sample">The sample to be checked.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the <see cref="QualityCheck"/> result.</returns>
-        Task<QualityCheck> PerformDriftCalibrationAsync(Sample sample);
-
-        /// <summary>
-        /// Asynchronously performs all applicable quality control checks on a given sample.
-        /// </summary>
-        /// <param name="sample">The sample to be checked.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains a collection of all <see cref="QualityCheck"/> results.</returns>
-        Task<IEnumerable<QualityCheck>> PerformAllQualityChecksAsync(Sample sample);
-
-        /// <summary>
-        /// Asynchronously retrieves all quality check results for a specific project.
-        /// </summary>
-        /// <param name="projectId">The unique identifier of the project.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains a collection of quality checks for the specified project.</returns>
-        Task<IEnumerable<QualityCheck>> GetProjectQualityChecksAsync(int projectId);
+        Task<ProjectQualitySummary> GetProjectQualitySummaryAsync(
+            Guid projectId,
+            CancellationToken cancellationToken = default);
     }
 }

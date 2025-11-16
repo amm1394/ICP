@@ -1,5 +1,6 @@
 ﻿using Core.Icp.Application.Services.Files;
 using Core.Icp.Application.Services.Projects;
+using Core.Icp.Application.Services.QualityControl;
 using Core.Icp.Application.Services.Samples;
 using Core.Icp.Domain.Interfaces.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,9 @@ public static class DependencyInjection
         services.AddScoped<IFileProcessingService, FileProcessingService>();
 
         services.AddScoped<IProjectQueryService, ProjectQueryService>();
+
+        // Quality Control
+        services.AddScoped<IQualityControlService, QualityControlService>();
 
         return services;
     }

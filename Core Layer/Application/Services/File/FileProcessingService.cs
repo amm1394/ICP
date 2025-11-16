@@ -275,7 +275,7 @@ namespace Core.Icp.Application.Services.Files
 
         /// <summary>
         /// ترکیب خروجی فایل (FileImportResult) و پروژه‌ی ساخته‌شده
-        /// و تولید یک ProjectImportResult سطح Application/Domain.
+        /// و تولید یک ProjectImportResult سطح Domain/Application.
         /// </summary>
         private static ProjectImportResult MapToProjectImportResult(
             Project project,
@@ -283,25 +283,56 @@ namespace Core.Icp.Application.Services.Files
         {
             var totalSamples = project.Samples?.Count ?? 0;
 
+            // استخراج خطاها و هشدارها از ValidationResult
+            var errors = new List<string>();
+            var warnings = new List<string>();
+
+            var validation = importResult.ValidationResult;
+
+            if (validation != null)
+            {
+                // خطاهای کلی فایل / ساختار
+                if (validation.Errors != null && validation.Errors.Count > 0)
+                    errors.AddRange(validation.Errors);
+
+                // خطاهای سطری (RowErrors)
+                if (validation.RowErrors != null && validation.RowErrors.Count > 0)
+                {
+                    foreach (var kvp in validation.RowErrors)
+                    {
+                        var rowKey = kvp.Key; // مثلا: "Row 5"
+                        foreach (var rowError in kvp.Value)
+                        {
+                            errors.Add($"{rowKey}: {rowError}");
+                        }
+                    }
+                }
+
+                // هشدارها
+                if (validation.Warnings != null && validation.Warnings.Count > 0)
+                    warnings.AddRange(validation.Warnings);
+            }
+
             var result = new ProjectImportResult
             {
                 Project = project,
                 Success = importResult.Success,
                 Message = importResult.Message,
+
                 TotalRecords = importResult.TotalRecords,
                 SuccessfulRecords = importResult.SuccessfulRecords,
                 FailedRecords = importResult.FailedRecords,
                 TotalSamples = totalSamples,
-                // فعلاً لیست خطا/هشدار را خالی می‌گذاریم؛
-                // در صورت نیاز می‌توان آن‌ها را از ValidationResult برداشت.
-                Errors = new List<string>(),
-                Warnings = new List<string>()
+
+                Errors = errors,
+                Warnings = warnings
             };
 
             return result;
         }
 
         #endregion
+
 
         private ProjectImportResult CreateProjectImportResult(
             Project project,

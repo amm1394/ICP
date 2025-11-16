@@ -1,79 +1,107 @@
-﻿using Core.Icp.Domain.Entities.Projects;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Core.Icp.Domain.Entities.Projects;
 using Core.Icp.Domain.Interfaces.Repositories;
 using Core.Icp.Domain.Interfaces.Services;
 
-namespace Core.Icp.Application.Services.Projects;
-
-/// <summary>
-/// پیاده‌سازی سرویس پروژه‌ها با استفاده از UnitOfWork و Repositoryها.
-/// </summary>
-public class ProjectService : IProjectService
+namespace Core.Icp.Application.Services.Projects
 {
-    private readonly IUnitOfWork _unitOfWork;
-
-    public ProjectService(IUnitOfWork unitOfWork)
+    /// <summary>
+    /// پیاده‌سازی سرویس پروژه‌ها با استفاده از UnitOfWork و Repositoryها.
+    /// </summary>
+    public class ProjectService : IProjectService
     {
-        _unitOfWork = unitOfWork;
-    }
+        private readonly IUnitOfWork _unitOfWork;
 
-    /// <inheritdoc />
-    public async Task<IEnumerable<Project>> GetAllProjectsAsync()
-    {
-        return await _unitOfWork.Projects.GetAllAsync();
-    }
+        public ProjectService(IUnitOfWork unitOfWork)
+        {
+            _unitOfWork = unitOfWork;
+        }
 
-    /// <inheritdoc />
-    public async Task<Project?> GetProjectByIdAsync(Guid id)
-    {
-        // برای خواندن پروژه همراه با Samples از متد مخصوص استفاده می‌کنیم
-        return await _unitOfWork.Projects.GetWithSamplesAsync(id);
-    }
+        public async Task<IEnumerable<Project>> GetAllProjectsAsync()
+        {
+            return await _unitOfWork.Projects.GetAllAsync();
+        }
 
-    /// <inheritdoc />
-    public async Task<IEnumerable<Project>> GetRecentProjectsAsync(int count)
-    {
-        return await _unitOfWork.Projects.GetRecentProjectsAsync(count);
-    }
+        public async Task<Project?> GetProjectByIdAsync(Guid id)
+        {
+            // برای خواندن پروژه همراه با Samples از متد مخصوص استفاده می‌کنیم
+            return await _unitOfWork.Projects.GetWithSamplesAsync(id);
+        }
 
-    /// <inheritdoc />
-    public async Task<Project> CreateProjectAsync(Project project)
-    {
-        await _unitOfWork.Projects.AddAsync(project);
-        await _unitOfWork.SaveChangesAsync();
-        return project;
-    }
+        public async Task<IEnumerable<Project>> GetRecentProjectsAsync(int count)
+        {
+            return await _unitOfWork.Projects.GetRecentProjectsAsync(count);
+        }
 
-    /// <inheritdoc />
-    public async Task<Project> UpdateProjectAsync(Project project)
-    {
-        await _unitOfWork.Projects.UpdateAsync(project);
-        await _unitOfWork.SaveChangesAsync();
-        return project;
-    }
+        public async Task<Project> CreateProjectAsync(Project project)
+        {
+            await _unitOfWork.Projects.AddAsync(project);
+            await _unitOfWork.SaveChangesAsync();
+            return project;
+        }
 
-    /// <inheritdoc />
-    public async Task<bool> DeleteProjectAsync(Guid id)
-    {
-        var project = await _unitOfWork.Projects.GetByIdAsync(id);
-        if (project is null)
-            return false;
+        public async Task<Project> UpdateProjectAsync(Project project)
+        {
+            await _unitOfWork.Projects.UpdateAsync(project);
+            await _unitOfWork.SaveChangesAsync();
+            return project;
+        }
 
-        await _unitOfWork.Projects.DeleteAsync(project);
-        await _unitOfWork.SaveChangesAsync();
-        return true;
-    }
+        public async Task<bool> DeleteProjectAsync(Guid id)
+        {
+            var project = await _unitOfWork.Projects.GetByIdAsync(id);
+            if (project is null)
+                return false;
 
-    /// <inheritdoc />
-    public Task<string> SaveProjectToFileAsync(Guid projectId, string filePath)
-    {
-        // TODO: در فازهای بعدی با لایه Files پیاده‌سازی می‌شود
-        throw new NotImplementedException();
-    }
+            await _unitOfWork.Projects.DeleteAsync(project);
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        }
 
-    /// <inheritdoc />
-    public Task<Project> LoadProjectFromFileAsync(string filePath)
-    {
-        // TODO: در فازهای بعدی با لایه Files پیاده‌سازی می‌شود
-        throw new NotImplementedException();
+        public Task<string> SaveProjectToFileAsync(Guid projectId, string filePath)
+        {
+            // TODO: در فازهای بعدی با لایه Files پیاده‌سازی می‌شود
+            throw new NotImplementedException();
+        }
+
+        public Task<Project> LoadProjectFromFileAsync(string filePath)
+        {
+            // TODO: در فازهای بعدی با لایه Files پیاده‌سازی می‌شود
+            throw new NotImplementedException();
+        }
+
+        public async Task<ProjectSettings?> GetProjectSettingsAsync(
+            Guid projectId,
+            CancellationToken cancellationToken = default)
+        {
+            var project = await _unitOfWork.Projects.GetByIdAsync(projectId);
+            if (project == null)
+                return null;
+
+            // SettingsJson -> ProjectSettings
+            var settings = project.GetSettings<ProjectSettings>();
+            return settings ?? new ProjectSettings();
+        }
+
+        public async Task<ProjectSettings> UpdateProjectSettingsAsync(
+            Guid projectId,
+            ProjectSettings settings,
+            CancellationToken cancellationToken = default)
+        {
+            var project = await _unitOfWork.Projects.GetByIdAsync(projectId);
+            if (project == null)
+                throw new InvalidOperationException("پروژه یافت نشد.");
+
+            // ProjectSettings -> SettingsJson
+            project.SetSettings(settings);
+
+            await _unitOfWork.Projects.UpdateAsync(project);
+            await _unitOfWork.SaveChangesAsync();
+
+            return settings;
+        }
     }
 }

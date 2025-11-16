@@ -1,27 +1,27 @@
 ﻿using System;
 
-namespace Shared.Icp.DTOs.QualityControl
+namespace Core.Icp.Domain.Models.QualityControl
 {
     /// <summary>
-    /// DTO نتیجه یک QC برای یک نمونه و یک نوع چک مشخص.
+    /// نتیجه یک QC برای یک نمونه و یک نوع چک مشخص.
     /// </summary>
-    public class QualityCheckResultDto
+    public class QualityCheckResult
     {
         public Guid ProjectId { get; set; }
         public Guid SampleId { get; set; }
 
         /// <summary>
-        /// نوع QC (مثلاً Weight, Volume, Dilution, Empty, CRM, Drift).
+        /// نوع QC (مثلاً "Weight", "Volume", "DF", "Empty", "CRM", "RM").
         /// </summary>
         public string CheckType { get; set; } = string.Empty;
 
         /// <summary>
-        /// وضعیت نهایی چک (Pass, Warning, Fail, NotImplemented, Pending).
+        /// وضعیت نهایی چک (مثلاً "Passed", "Warning", "Failed", "NotImplemented").
         /// </summary>
         public string Status { get; set; } = string.Empty;
 
         /// <summary>
-        /// پیام توضیحی برای کاربر.
+        /// پیام توضیحی برای کاربر (در صورت نیاز).
         /// </summary>
         public string Message { get; set; } = string.Empty;
     }

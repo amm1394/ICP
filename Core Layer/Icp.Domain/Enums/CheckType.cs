@@ -33,6 +33,8 @@
         /// <summary>
         /// A check for instrument drift using a calibration standard.
         /// </summary>
-        DriftCalibration = 6
+        DriftCalibration = 6,
+
+        DilutionCheck = 7
     }
 }
