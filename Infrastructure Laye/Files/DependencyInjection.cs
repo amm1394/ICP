@@ -1,4 +1,5 @@
-﻿using Infrastructure.Icp.Files.Interfaces;
+﻿using Core.Icp.Domain.Interfaces.Repositories;
+using Infrastructure.Icp.Files.Interfaces;
 using Infrastructure.Icp.Files.Services;
 using Microsoft.Extensions.DependencyInjection;
 

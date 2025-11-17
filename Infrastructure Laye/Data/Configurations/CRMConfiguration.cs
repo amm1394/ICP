@@ -1,8 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Core.Icp.Domain.Entities.CRM;
 
-namespace Infrastructure.Icp.Data.Configurations
+namespace Core.Icp.Infrastructure.Data.Configurations
 {
     public class CRMConfiguration : IEntityTypeConfiguration<CRM>
     {
@@ -10,44 +9,39 @@ namespace Infrastructure.Icp.Data.Configurations
         {
             builder.ToTable("CRMs");
 
-            builder.HasKey(c => c.Id);
+            builder.HasKey(x => x.Id);
 
-            builder.Property(c => c.CRMId)
-                .IsRequired()
-                .HasMaxLength(50);
+            builder.Property(x => x.CRMId)
+                   .IsRequired()
+                   .HasMaxLength(100);
 
-            builder.Property(c => c.Name)
-                .IsRequired()
-                .HasMaxLength(200);
+            builder.HasIndex(x => x.CRMId)
+                   .IsUnique();
 
-            builder.Property(c => c.Manufacturer)
-                .HasMaxLength(100);
+            builder.Property(x => x.Name)
+                   .HasMaxLength(200);
 
-            builder.Property(c => c.LotNumber)
-                .HasMaxLength(50);
+            builder.Property(x => x.Manufacturer)
+                   .HasMaxLength(200);
 
-            builder.Property(c => c.Notes)
-                .HasMaxLength(1000);
+            builder.Property(x => x.LotNumber)
+                   .HasMaxLength(100);
 
-            builder.Property(c => c.CreatedBy)
-                .HasMaxLength(100);
+            builder.Property(x => x.Matrix)
+                   .HasMaxLength(100);
 
-            builder.Property(c => c.UpdatedBy)
-                .HasMaxLength(100);
+            builder.Property(x => x.Description)
+                   .HasMaxLength(1000);
 
-            // Index ها
-            builder.HasIndex(c => c.CRMId)
-                .IsUnique()
-                .HasDatabaseName("IX_CRM_CRMId");
+            builder.Property(x => x.IsActive)
+                   .HasDefaultValue(true);
 
-            builder.HasIndex(c => c.IsActive)
-                .HasDatabaseName("IX_CRM_IsActive");
+            builder.Property(x => x.ExpirationDate);
 
-            // روابط
-            builder.HasMany(c => c.CertifiedValues)
-                .WithOne(v => v.CRM)
-                .HasForeignKey(v => v.CRMId)
-                .OnDelete(DeleteBehavior.Cascade);
+            builder.HasMany(x => x.CertifiedValues)
+                   .WithOne(v => v.CRM)
+                   .HasForeignKey(v => v.CRMId)
+                   .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

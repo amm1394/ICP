@@ -1,6 +1,4 @@
-﻿using Core.Icp.Domain.Entities.CRM;
-
-namespace Core.Icp.Domain.Interfaces.Services
+﻿namespace Core.Icp.Domain.Interfaces.Services
 {
     /// <summary>
     /// Defines the contract for a service that manages Certified Reference Materials (CRMs).

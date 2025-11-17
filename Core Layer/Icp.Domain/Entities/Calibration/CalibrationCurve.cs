@@ -1,17 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using Core.Icp.Domain.Base;
+using Core.Icp.Domain.Entities.Elements;
 using Core.Icp.Domain.Entities.Projects;
 
-namespace Core.Icp.Domain.Entities.Elements
+namespace Core.Icp.Domain.Entities.Calibration
 {
-    /// <summary>
-    /// منحنی کالیبراسیون برای یک Element در یک Project
-    /// </summary>
-    public class CalibrationCurve : BaseEntity
+    public class CalibrationCurve // : BaseEntity
     {
+        public Guid Id { get; set; }
+
         /// <summary>
-        /// عنصر مربوطه (مثلاً Cu, Zn, Pb)
+        /// عنصر مربوطه (مثلاً Cu)
         /// </summary>
         public Guid ElementId { get; set; }
         public virtual Element Element { get; set; } = default!;
@@ -48,18 +47,15 @@ namespace Core.Icp.Domain.Entities.Elements
         public int Degree { get; set; } = 1;
 
         /// <summary>
-        /// آیا این منحنی فعال است (منحنی جاری پروژه/عنصر)؟
-        /// </summary>
-        public bool IsActive { get; set; } = true;
-
-        /// <summary>
-        /// تنظیمات اضافی به صورت JSON (مثلاً نوع وزن‌دهی، حد حذف Outlier، ...)
+        /// توضیحات یا تنظیمات اضافی (مثلاً نوع وزن‌دهی)
         /// </summary>
         public string? SettingsJson { get; set; }
 
         /// <summary>
-        /// نقاطی که برای ساخت این منحنی استفاده شده‌اند
+        /// آیا این منحنی در حال حاضر منحنی فعال برای این پروژه/عنصر است؟
         /// </summary>
+        public bool IsActive { get; set; } = true;
+
         public virtual ICollection<CalibrationPoint> Points { get; set; } = new List<CalibrationPoint>();
     }
 }

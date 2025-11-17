@@ -1,5 +1,4 @@
-﻿using Core.Icp.Domain.Entities.CRM;
-using Core.Icp.Domain.Interfaces.Repositories;
+﻿using Core.Icp.Domain.Interfaces.Repositories;
 using Infrastructure.Icp.Data.Context;
 using Microsoft.EntityFrameworkCore;
 

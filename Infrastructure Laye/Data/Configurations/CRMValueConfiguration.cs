@@ -1,8 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Core.Icp.Domain.Entities.CRM;
 
-namespace Infrastructure.Icp.Data.Configurations
+namespace Core.Icp.Infrastructure.Data.Configurations
 {
     public class CRMValueConfiguration : IEntityTypeConfiguration<CRMValue>
     {
@@ -10,39 +9,26 @@ namespace Infrastructure.Icp.Data.Configurations
         {
             builder.ToTable("CRMValues");
 
-            builder.HasKey(v => v.Id);
+            builder.HasKey(x => x.Id);
 
-            builder.Property(v => v.Unit)
-                .IsRequired()
-                .HasMaxLength(20);
+            builder.Property(x => x.CertifiedValue)
+                   .HasPrecision(18, 6);
 
-            builder.Property(v => v.CreatedBy)
-                .HasMaxLength(100);
+            builder.Property(x => x.Uncertainty)
+                   .HasPrecision(18, 6);
 
-            builder.Property(v => v.UpdatedBy)
-                .HasMaxLength(100);
+            builder.Property(x => x.MinAcceptable)
+                   .HasPrecision(18, 6);
 
-            // Index ها
-            builder.HasIndex(v => v.CRMId)
-                .HasDatabaseName("IX_CRMValue_CRMId");
+            builder.Property(x => x.MaxAcceptable)
+                   .HasPrecision(18, 6);
 
-            builder.HasIndex(v => v.ElementId)
-                .HasDatabaseName("IX_CRMValue_ElementId");
+            builder.Property(x => x.Unit)
+                   .IsRequired()
+                   .HasMaxLength(50);
 
-            builder.HasIndex(v => new { v.CRMId, v.ElementId })
-                .IsUnique()
-                .HasDatabaseName("IX_CRMValue_CRM_Element");
-
-            // روابط
-            builder.HasOne(v => v.CRM)
-                .WithMany(c => c.CertifiedValues)
-                .HasForeignKey(v => v.CRMId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.HasOne(v => v.Element)
-                .WithMany()
-                .HasForeignKey(v => v.ElementId)
-                .OnDelete(DeleteBehavior.Restrict);
+            builder.Property(x => x.IsActive)
+                   .HasDefaultValue(true);
         }
     }
 }

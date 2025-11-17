@@ -1,4 +1,5 @@
 ﻿using Core.Icp.Domain.Interfaces.Repositories;
+using Core.Icp.Infrastructure.Data.Repositories;
 using Infrastructure.Icp.Data.Context;
 using Infrastructure.Icp.Data.Repositories;
 using Infrastructure.Icp.Data.UnitOfWork;
@@ -29,6 +30,7 @@ namespace Infrastructure.Data
 
             // Unit of Work
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
             return services;
         }

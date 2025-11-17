@@ -1,7 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Core.Icp.Domain.Entities.Samples;
 using Core.Icp.Domain.Entities.Elements;
-using Core.Icp.Domain.Entities.CRM;
 using Core.Icp.Domain.Entities.Projects;
 using Core.Icp.Domain.Entities.QualityControl;
 

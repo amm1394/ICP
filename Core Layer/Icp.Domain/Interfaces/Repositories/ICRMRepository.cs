@@ -1,6 +1,4 @@
-﻿using Core.Icp.Domain.Entities.CRM;
-
-namespace Core.Icp.Domain.Interfaces.Repositories
+﻿namespace Core.Icp.Domain.Interfaces.Repositories
 {
     /// <summary>
     /// Defines the contract for a repository that manages Certified Reference Material (CRM) entities.

@@ -1,4 +1,5 @@
-﻿using Core.Icp.Application.Services.Files;
+﻿using Core.Icp.Application.Services;
+using Core.Icp.Application.Services.Files;
 using Core.Icp.Application.Services.Projects;
 using Core.Icp.Application.Services.QualityControl;
 using Core.Icp.Application.Services.Samples;
@@ -24,6 +25,10 @@ public static class DependencyInjection
 
         // Quality Control
         services.AddScoped<IQualityControlService, QualityControlService>();
+
+        services.AddScoped<Interfaces.ICRMService, CRMService>();
+
+        services.AddScoped<Interfaces.ICalibrationService, CalibrationService>();
 
         return services;
     }
