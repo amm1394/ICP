@@ -13,13 +13,18 @@ public class RunQualityCheckHandler(IQualityControlService qcService)
 
         if (request.SpecificCheckType.HasValue)
         {
-            failedCount = await qcService.RunCheckAsync(request.ProjectId, request.SpecificCheckType.Value, cancellationToken);
+            failedCount = await qcService.RunCheckAsync(
+                request.ProjectId,
+                request.SpecificCheckType.Value,
+                cancellationToken);
         }
         else
         {
-            failedCount = await qcService.RunAllChecksAsync(request.ProjectId, cancellationToken);
+            failedCount = await qcService.RunAllChecksAsync(
+                request.ProjectId,
+                cancellationToken);
         }
 
-        return await Result<int>.SuccessAsync(failedCount, $"QC Completed. Failures: {failedCount}");
+        return await Result<int>.SuccessAsync(failedCount, $"Quality Control completed. {failedCount} checks failed/warning.");
     }
 }
