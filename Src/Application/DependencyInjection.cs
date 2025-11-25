@@ -1,4 +1,5 @@
-﻿using Application.Services.QualityControl;
+﻿using Application.Services.Calibration;
+using Application.Services.QualityControl;
 using Domain.Interfaces.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -13,6 +14,7 @@ public static class DependencyInjection
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
 
         services.AddScoped<IQualityControlService, QualityControlService>();
+        services.AddScoped<ICalibrationService, CalibrationService>();
 
         return services;
     }

@@ -12,6 +12,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 {
     public DbSet<Sample> Samples { get; set; }
     public DbSet<Measurement> Measurements { get; set; }
+    public DbSet<CalibrationCurve> CalibrationCurves { get; set; }
+    public DbSet<CalibrationPoint> CalibrationPoints { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

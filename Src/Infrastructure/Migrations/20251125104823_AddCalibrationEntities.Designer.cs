@@ -4,6 +4,7 @@ using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251125104823_AddCalibrationEntities")]
+    partial class AddCalibrationEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,73 +24,6 @@ namespace Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("Domain.Entities.CalibrationCurve", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ElementName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<double>("Intercept")
-                        .HasColumnType("float");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("LastModified")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<double>("RSquared")
-                        .HasColumnType("float");
-
-                    b.Property<double>("Slope")
-                        .HasColumnType("float");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("CalibrationCurves");
-                });
-
-            modelBuilder.Entity("Domain.Entities.CalibrationPoint", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CalibrationCurveId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<double>("Concentration")
-                        .HasColumnType("float");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<double>("Intensity")
-                        .HasColumnType("float");
-
-                    b.Property<bool>("IsExcluded")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("LastModified")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CalibrationCurveId");
-
-                    b.ToTable("CalibrationPoints");
-                });
 
             modelBuilder.Entity("Domain.Entities.Measurement", b =>
                 {
@@ -232,17 +168,6 @@ namespace Infrastructure.Migrations
                     b.ToTable("Samples", (string)null);
                 });
 
-            modelBuilder.Entity("Domain.Entities.CalibrationPoint", b =>
-                {
-                    b.HasOne("Domain.Entities.CalibrationCurve", "CalibrationCurve")
-                        .WithMany("Points")
-                        .HasForeignKey("CalibrationCurveId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CalibrationCurve");
-                });
-
             modelBuilder.Entity("Domain.Entities.Measurement", b =>
                 {
                     b.HasOne("Domain.Entities.Sample", "Sample")
@@ -274,11 +199,6 @@ namespace Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
-                });
-
-            modelBuilder.Entity("Domain.Entities.CalibrationCurve", b =>
-                {
-                    b.Navigation("Points");
                 });
 
             modelBuilder.Entity("Domain.Entities.Project", b =>
