@@ -1,44 +1,49 @@
-﻿using Application;      // برای دسترسی به AddApplicationServices
-using Infrastructure;   // برای دسترسی به AddInfrastructureServices
+﻿using Application;        // برای AddApplicationServices
+using Infrastructure;     // برای AddInfrastructureServices
+using Scalar.AspNetCore;  // برای Scalar UI
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
+// ===============================
+//  ثبت سرویس‌ها
+// ===============================
 builder.Services.AddControllers();
 
-// تنظیمات OpenAPI (مخصوص .NET 9 و 10)
+// OpenAPI (مخصوص .NET 9 / 10)
 builder.Services.AddOpenApi();
 
-// ==================================================================
-// اتصال لایه‌های معماری تمیز (Clean Architecture Wiring)
-// ==================================================================
-
-// 1. ثبت سرویس‌های لایه Application (مثل MediatR)
+// لایه Application
 builder.Services.AddApplicationServices();
 
-// 2. ثبت سرویس‌های لایه Infrastructure (دیتابیس، فایل، ریپازیتوری)
+// لایه Infrastructure (دیتابیس، فایل، ریپازیتوری و ...)
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// ==================================================================
+// ===============================
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// ===============================
+//  Pipeline
+// ===============================
+
+// ✅ هم در Development هم در Production فعال است
+app.MapOpenApi();
+
+app.MapScalarApiReference(options =>
 {
-    // تولید آدرس /openapi/v1.json
-    app.MapOpenApi();
+    options.Title = "My API";
+    // تنظیمات اضافه اگر خواستی
+});
 
-    // نکته: در .NET 9 به بعد، Swagger UI به صورت پیش‌فرض نیست.
-    // اگر رابط گرافیکی می‌خواهید، می‌توانید از Scalar استفاده کنید (اختیاری)
-    // app.MapScalarApiReference(); 
-}
-
-app.UseHttpsRedirection();
+// اگر بعداً HTTPS خواستی، این خط را فعال کن
+// app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
+// کنترلرها
 app.MapControllers();
+
+// ✅ یک روت ساده برای تست
+app.MapGet("/", () => Results.Ok("API is running on port 5000"));
 
 app.Run();
