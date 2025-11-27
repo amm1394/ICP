@@ -4,38 +4,30 @@ using Scalar.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using Microsoft.AspNetCore.ResponseCompression; // 👈 برای Gzip
-using System.IO.Compression; // 👈 برای تنظیمات فشرده‌سازی
-using System.Text.Json.Serialization; // 👈 برای تنظیمات JSON
+using Microsoft.AspNetCore.ResponseCompression;
+using System.IO.Compression;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ===============================
-//  1. ثبت سرویس‌ها (DI)
+//  1. تنظیمات سرویس‌ها (DI)
 // ===============================
 
-// ✅ تنظیمات JSON برای جلوگیری از خطای Circular Reference و جایگزینی نیاز به Newtonsoft
+// تنظیمات JSON (جلوگیری از لوپ و فرمت‌دهی)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // اگر شیء A به B و B به A اشاره کند، ارور نمی‌دهد و نادیده می‌گیرد
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-        // فرمت خروجی تمیز باشد (اختیاری - در پروداکشن می‌توان حذف کرد)
         options.JsonSerializerOptions.WriteIndented = true;
     });
 
-// ✅ فعال‌سازی سرویس فشرده‌سازی (Gzip)
+// فعال‌سازی فشرده‌سازی Gzip/Brotli (بهینه‌سازی سرعت)
 builder.Services.AddResponseCompression(options =>
 {
-    options.EnableForHttps = true; // فشرده‌سازی در HTTPS هم فعال باشد
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
-    options.Providers.Add<BrotliCompressionProvider>(); // Brotli معمولاً فشرده‌تر از Gzip است
-});
-
-// تنظیم سطح فشرده‌سازی (Fastest سرعت بالا، Optimal فشرده‌سازی بیشتر)
-builder.Services.Configure<GzipCompressionProviderOptions>(options =>
-{
-    options.Level = CompressionLevel.Fastest;
 });
 
 builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
@@ -43,20 +35,26 @@ builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
     options.Level = CompressionLevel.Fastest;
 });
 
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+
+// OpenAPI (مخصوص .NET 9)
 builder.Services.AddOpenApi();
 
-// لایه‌های پروژه
+// لایه‌های پروژه (Application & Infrastructure)
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// تنظیمات JWT Authentication
+// --- تنظیمات امنیت (JWT Authentication) ---
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-// چک کردن نال بودن کلید برای جلوگیری از خطا در اجرا
 var secretKeyString = jwtSettings["Secret"];
+
+// اطمینان از وجود کلید امنیتی
 if (string.IsNullOrEmpty(secretKeyString))
-{
     throw new Exception("JWT Secret key is not configured in appsettings.json");
-}
+
 var secretKey = Encoding.UTF8.GetBytes(secretKeyString);
 
 builder.Services.AddAuthentication(options =>
@@ -77,29 +75,32 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(secretKey)
     };
 });
-
-// ===============================
+// -------------------------------------------
 
 var app = builder.Build();
 
 // ===============================
-//  2. پایپ‌لاین (Middleware)
+//  2. پایپ‌لاین درخواست‌ها (Middleware)
 // ===============================
 
-// ✅ میدل‌ویر فشرده‌سازی باید در ابتدای پایپ‌لاین باشد
+// فشرده‌سازی باید اولین باشد
 app.UseResponseCompression();
 
+// مستندات API
 app.MapOpenApi();
 app.MapScalarApiReference(options =>
 {
     options.Title = "Isatis ICP API";
 });
 
-app.UseAuthentication();
-app.UseAuthorization();
+// امنیت (ترتیب مهم است)
+app.UseAuthentication(); // 1. تشخیص هویت
+app.UseAuthorization();  // 2. بررسی دسترسی
 
+// کنترلرها
 app.MapControllers();
 
-app.MapGet("/", () => Results.Ok("Isatis API is running securely with Gzip compression 🚀"));
+// تست ساده
+app.MapGet("/", () => Results.Ok("Isatis API is running securely (Auth + Gzip) 🚀"));
 
 app.Run();
