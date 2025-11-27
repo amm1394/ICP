@@ -16,6 +16,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CalibrationPoint> CalibrationPoints { get; set; }
     public DbSet<Crm> Crms { get; set; }
     public DbSet<CrmCertifiedValue> CrmCertifiedValues { get; set; }
+    public DbSet<User> Users { get; set; }  
+    public DbSet<Role> Roles { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
