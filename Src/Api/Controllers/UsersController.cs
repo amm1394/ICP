@@ -28,20 +28,30 @@ public class UsersController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
+    // POST: api/users
+    // ورودی مستقیم: CreateUserCommand
     [HttpPost]
-    public async Task<ActionResult<Result<Guid>>> Create([FromBody] CreateUserRequest request)
+    public async Task<ActionResult<Result<Guid>>> Create([FromBody] CreateUserCommand command)
     {
-        var command = new CreateUserCommand(request.User, request.Password);
         var result = await mediator.Send(command);
-        return Ok(result);
+
+        if (result.Succeeded)
+            return Ok(result);
+
+        return BadRequest(result);
     }
 
+    // PUT: api/users
+    // ورودی مستقیم: UpdateUserCommand (User + NewPassword)
     [HttpPut]
-    public async Task<ActionResult<Result<Guid>>> Update([FromBody] UpdateUserRequest request)
+    public async Task<ActionResult<Result<Guid>>> Update([FromBody] UpdateUserCommand command)
     {
-        var command = new UpdateUserCommand(request.User, request.NewPassword);
         var result = await mediator.Send(command);
-        return Ok(result);
+
+        if (result.Succeeded)
+            return Ok(result);
+
+        return BadRequest(result);
     }
 
     [HttpDelete("{id}")]
@@ -50,16 +60,4 @@ public class UsersController(IMediator mediator) : ControllerBase
         var result = await mediator.Send(new DeleteUserCommand(id));
         return Ok(result);
     }
-}
-
-public class CreateUserRequest
-{
-    public required User User { get; set; }
-    public required string Password { get; set; }
-}
-
-public class UpdateUserRequest
-{
-    public required User User { get; set; }
-    public string? NewPassword { get; set; }
 }

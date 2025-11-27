@@ -1,6 +1,4 @@
-﻿using Domain.Entities;
-
-namespace Domain.Interfaces.Services;
+﻿namespace Domain.Interfaces.Services;
 
 public interface ICrmService
 {

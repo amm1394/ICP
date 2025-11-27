@@ -1,6 +1,6 @@
-﻿namespace Application.Services.Interfaces;
+﻿using Domain.Entities; // برای دسترسی به کلاس Sample
 
-using Domain.Entities; // برای دسترسی به کلاس Sample
+namespace Domain.Interfaces.Services;
 
 public interface IExcelService
 {

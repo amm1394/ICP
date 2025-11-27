@@ -1,10 +1,10 @@
 ﻿// مسیر فایل: Application/Features/Samples/Commands/ImportSamples/ImportSamplesCommandHandler.cs
 
-using Application.Services.Interfaces;
 using Domain.Interfaces;
 using Domain.Entities;
 using MediatR;
 using Shared.Wrapper;
+using Domain.Interfaces.Services;
 
 namespace Application.Features.Samples.Commands.ImportSamples;
 

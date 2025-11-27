@@ -1,5 +1,5 @@
-﻿using Application.Services.Interfaces; // Namespace اختصاصی شما برای اینترفیس
-using Domain.Interfaces;
+﻿using Domain.Interfaces;
+using Domain.Interfaces.Services;
 using Infrastructure.FileProcessing;
 using Infrastructure.Persistence;
 using Infrastructure.Persistence.Repositories;

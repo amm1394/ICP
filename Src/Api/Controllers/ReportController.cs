@@ -1,5 +1,4 @@
-﻿using Application.Services.Interfaces;
-using Domain.Interfaces.Services;
+﻿using Domain.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 using Shared.Wrapper;
 
