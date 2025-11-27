@@ -1,5 +1,6 @@
 ﻿using Domain.Interfaces;
 using Infrastructure.FileProcessing; // برای CsvFileService و ExcelService
+using Infrastructure.Identity;
 using Infrastructure.Persistence;
 using Infrastructure.Persistence.Repositories;
 using Infrastructure.Reports; // برای ExcelExportService
@@ -26,6 +27,7 @@ public static class DependencyInjection
         // چون هر دو از یک اینترفیس ارث می‌برند، به صورت کالکشن ثبت می‌شوند
         services.AddScoped<IFileImportService, ExcelService>();
         services.AddScoped<IFileImportService, CsvFileService>();
+        services.AddScoped<ITokenService, TokenService>();
 
         // 4. ثبت سرویس خروجی اکسل (فاز ۵)
         services.AddScoped<IExcelExportService, ExcelExportService>();
