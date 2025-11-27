@@ -1,8 +1,8 @@
 ﻿using Domain.Interfaces;
-using Infrastructure.FileProcessing;
+using Infrastructure.FileProcessing; // برای CsvFileService و ExcelService
 using Infrastructure.Persistence;
 using Infrastructure.Persistence.Repositories;
-using Infrastructure.Reports;
+using Infrastructure.Reports; // برای ExcelExportService
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,29 +13,22 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // 1. تنظیمات دیتابیس (Entity Framework Core)
-        // اگر از SQLite استفاده می‌کنید:
+        // 1. تنظیمات دیتابیس
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(
+                configuration.GetConnectionString("DefaultConnection"),
+                b => b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
 
-        // اگر در آینده خواستید از SQL Server استفاده کنید، خط بالا را کامنت و خط زیر را فعال کنید:
-        // services.AddDbContext<ApplicationDbContext>(options =>
-        //     options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
-
-
-        // 2. ثبت سرویس‌های فایل (ClosedXML Implementation)
-        // این خط پیاده‌سازی ExcelService را به اینترفیس IExcelService متصل می‌کند
-        services.AddScoped<IFileImportService, ExcelService>();
-        services.AddScoped<IFileImportService, CsvFileService>();
-        services.AddScoped<IExcelExportService, ExcelExportService>();
-
-        // 3. ثبت ریپازیتوری‌ها (Generic Repository & Unit of Work)
-        // ثبت به صورت Generic برای اینکه بتوانید برای هر Entity از آن استفاده کنید
-        services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-
-        // ثبت UnitOfWork برای مدیریت تراکنش‌ها
+        // 2. ثبت UnitOfWork
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+        // 3. ثبت سرویس‌های ایمپورت فایل (فاز ۲)
+        // چون هر دو از یک اینترفیس ارث می‌برند، به صورت کالکشن ثبت می‌شوند
+        services.AddScoped<IFileImportService, ExcelService>();
+        services.AddScoped<IFileImportService, CsvFileService>();
+
+        // 4. ثبت سرویس خروجی اکسل (فاز ۵)
+        services.AddScoped<IExcelExportService, ExcelExportService>();
 
         return services;
     }
