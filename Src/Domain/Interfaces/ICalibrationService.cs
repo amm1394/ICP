@@ -2,7 +2,7 @@
 
 using Domain.Entities;
 
-namespace Domain.Interfaces.Services; // Namespace اصلاح شد
+namespace Domain.Interfaces; // Namespace اصلاح شد
 
 public interface ICalibrationService
 {

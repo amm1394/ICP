@@ -1,4 +1,4 @@
-﻿using Domain.Interfaces.Services;
+﻿using Domain.Interfaces;
 using MediatR;
 using Shared.Wrapper;
 

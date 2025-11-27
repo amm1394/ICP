@@ -1,5 +1,5 @@
 ﻿using System.Text.RegularExpressions;
-using Application.Services.Interfaces;
+using Domain.Interfaces;
 using Domain.Entities;
 using Domain.Enums;
 

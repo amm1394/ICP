@@ -1,7 +1,7 @@
 ﻿using Application.Services.Calibration;
 using Application.Services.Crm;
 using Application.Services.QualityControl;
-using Domain.Interfaces.Services;
+using Domain.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 

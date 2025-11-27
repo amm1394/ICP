@@ -1,7 +1,6 @@
 ﻿using Domain.Entities;
 using Domain.Enums;
 using Domain.Interfaces;
-using Domain.Interfaces.Services;
 using MediatR;
 using Shared.Wrapper;
 

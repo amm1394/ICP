@@ -1,5 +1,6 @@
-﻿// Src/Application/Interfaces/Services/IReportGenerator.cs
-using Application.Features.Reports.DTOs;
+﻿using Domain.Reports.DTOs;
+
+namespace Domain.Interfaces; // اصلاح شده: حذف Core.Icp
 
 public interface IReportGenerator
 {

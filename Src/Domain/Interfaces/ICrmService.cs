@@ -1,4 +1,4 @@
-﻿namespace Domain.Interfaces.Services;
+﻿namespace Domain.Interfaces;
 
 public interface ICrmService
 {

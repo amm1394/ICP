@@ -1,7 +1,7 @@
 ﻿using Domain.Enums;
 using Domain.Models;
 
-namespace Domain.Interfaces.Services; // اصلاح شده: حذف Core.Icp
+namespace Domain.Interfaces; // اصلاح شده: حذف Core.Icp
 
 public interface IQualityControlService
 {

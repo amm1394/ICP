@@ -1,6 +1,6 @@
 ﻿using Domain.Entities;
 
-namespace Application.Services.Interfaces;
+namespace Domain.Interfaces;
 
 public interface IFileImportService
 {

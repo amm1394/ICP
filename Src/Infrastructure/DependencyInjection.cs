@@ -1,9 +1,8 @@
-﻿using Application.Services.Interfaces;
-using Domain.Interfaces;
-using Domain.Interfaces.Services;
+﻿using Domain.Interfaces;
 using Infrastructure.FileProcessing;
 using Infrastructure.Persistence;
 using Infrastructure.Persistence.Repositories;
+using Infrastructure.Reports;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +27,7 @@ public static class DependencyInjection
         // این خط پیاده‌سازی ExcelService را به اینترفیس IExcelService متصل می‌کند
         services.AddScoped<IFileImportService, ExcelService>();
         services.AddScoped<IFileImportService, CsvFileService>();
+        services.AddScoped<IExcelExportService, ExcelExportService>();
 
         // 3. ثبت ریپازیتوری‌ها (Generic Repository & Unit of Work)
         // ثبت به صورت Generic برای اینکه بتوانید برای هر Entity از آن استفاده کنید

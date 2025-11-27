@@ -1,6 +1,6 @@
 ﻿using Application.Features.QualityControl.Commands.RunWeightCheck;
 using Domain.Enums;
-using Domain.Interfaces.Services;
+using Domain.Interfaces;
 using MediatR;
 using Shared.Wrapper;
 

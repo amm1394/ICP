@@ -9,4 +9,8 @@
   <ItemGroup>
     <None Include="Entities\Role.cs" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+  </ItemGroup>
 </Project>

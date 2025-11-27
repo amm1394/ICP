@@ -1,7 +1,7 @@
 ﻿using System.Text.RegularExpressions;
 using Domain.Entities;
 using Domain.Enums;
-using Domain.Interfaces.Services;
+using Domain.Interfaces;
 using Domain.Models;
 
 namespace Application.Services.QualityControl.Strategies;

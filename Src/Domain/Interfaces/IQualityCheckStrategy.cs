@@ -2,7 +2,7 @@
 using Domain.Enums;
 using Domain.Models;
 
-namespace Domain.Interfaces.Services;
+namespace Domain.Interfaces;
 
 public interface IQualityCheckStrategy
 {

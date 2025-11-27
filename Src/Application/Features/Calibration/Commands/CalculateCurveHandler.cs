@@ -1,7 +1,7 @@
 ﻿using MediatR;
 using Shared.Wrapper;
 using Application.Features.Calibration.DTOs;
-using Domain.Interfaces.Services;
+using Domain.Interfaces;
 
 namespace Application.Features.Calibration.Commands.CalculateCurve;
 

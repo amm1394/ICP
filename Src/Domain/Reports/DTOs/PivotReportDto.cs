@@ -1,11 +1,11 @@
-﻿namespace Application.Features.Reports.DTOs;
+﻿namespace Domain.Reports.DTOs;
 
 public class PivotReportDto
 {
-    // لیست تمام ستون‌های عنصر (برای ساخت هدر جدول در UI/Excel)
-    // مثلا: ["Li 7", "Cu 63", "Zn 66", ...]
-    public List<string> ElementHeaders { get; set; } = new();
+    public Guid ProjectId { get; set; }
 
-    // داده‌های سطر به سطر
+    // لیست نام عناصر (هدر ستون‌ها)
+    public List<string> Columns { get; set; } = new();
+
     public List<PivotRowDto> Rows { get; set; } = new();
 }

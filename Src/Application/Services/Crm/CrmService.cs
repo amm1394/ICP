@@ -1,7 +1,6 @@
 ﻿using Domain.Entities;
 using Domain.Enums;
 using Domain.Interfaces;
-using Domain.Interfaces.Services;
 using MathNet.Numerics.LinearRegression;
 
 namespace Application.Services.Crm; // ✅ اصلاح Namespace به Crm (حروف کوچک)

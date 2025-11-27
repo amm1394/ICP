@@ -1,7 +1,6 @@
 ﻿using Domain.Entities;
 using Domain.Enums;
 using Domain.Interfaces;
-using Domain.Interfaces.Services;
 using Domain.Models;
 using System.Text.Json; // برای خواندن تنظیمات
 

@@ -1,7 +1,7 @@
-﻿using Application.Services.Interfaces;
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 using Domain.Entities;
 using Domain.Enums;
+using Domain.Interfaces;
 using System.Text.RegularExpressions;
 
 namespace Infrastructure.FileProcessing;
