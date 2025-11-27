@@ -2,14 +2,19 @@
 
 public class ProjectSettings
 {
-    public bool AutoQualityControl { get; set; } = true;
+    // QC - Weight
+    public double? MinAcceptableWeight { get; set; } = 0.190;
+    public double? MaxAcceptableWeight { get; set; } = 0.210;
 
-    public double? MinAcceptableWeight { get; set; }
-    public double? MaxAcceptableWeight { get; set; }
+    // QC - Volume
+    public double? MinAcceptableVolume { get; set; } = 48.0;
+    public double? MaxAcceptableVolume { get; set; } = 52.0;
 
-    public double? MinAcceptableVolume { get; set; }
-    public double? MaxAcceptableVolume { get; set; }
+    // QC - Dilution Factor
+    public double? MinDilutionFactor { get; set; } = 0.9;
+    public double? MaxDilutionFactor { get; set; } = 1000.0;
 
-    public double? MinDilutionFactor { get; set; }
-    public double? MaxDilutionFactor { get; set; }
+    // QC - CRM (اضافه شده برای رفع خطا)
+    public double? MinRecoveryPercentage { get; set; } = 90.0; // حداقل درصد بازیابی (مثلاً ۹۰٪)
+    public double? MaxRecoveryPercentage { get; set; } = 110.0; // حداکثر درصد بازیابی (مثلاً ۱۱۰٪)
 }

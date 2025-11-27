@@ -1,5 +1,5 @@
 ﻿using Application.Services.Calibration;
-using Application.Services.CRM;
+using Application.Services.Crm;
 using Application.Services.QualityControl;
 using Domain.Interfaces.Services;
 using Microsoft.Extensions.DependencyInjection;
