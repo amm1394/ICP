@@ -15,6 +15,13 @@ public class ProjectsController : ControllerBase
         _projectPersistence = projectPersistence;
     }
 
+    // Debug: return implementation type name
+    [HttpGet("impl")]
+    public ActionResult<string> GetPersistenceImpl()
+    {
+        return Ok(_projectPersistence.GetType().FullName);
+    }
+
     // DTOs used by controller for simplicity
     public record SaveProjectRequest(string ProjectName, string? Owner, List<RawRowDto>? RawRows, string? StateJson);
     public record RawRowDto(string ColumnData, string? SampleId);
