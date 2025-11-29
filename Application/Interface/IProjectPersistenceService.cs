@@ -1,5 +1,4 @@
-﻿using Domain.Entities;
-using Shared.Wrapper;
+﻿using Shared.Wrapper;
 
 namespace Application.Services;
 

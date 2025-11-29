@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
 
 	<ItemGroup>
 		<!-- EF Core SQL Server provider + design/tools for migrations -->
@@ -21,8 +21,10 @@
 
 	<ItemGroup>
 		<!-- References used by Infrastructure -->
+		<ProjectReference Include="..\..\Application\Application.csproj" />
 		<ProjectReference Include="..\Domain\Domain.csproj" />
 		<ProjectReference Include="..\Shared\Shared.csproj" />
+		<!-- مهم: برای IProjectPersistenceService -->
 	</ItemGroup>
-	
+
 </Project>

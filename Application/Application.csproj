@@ -7,16 +7,13 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- CQRS/mediator and data processing libs used in Application layer -->
-		<PackageReference Include="MediatR" Version="13.1.0" />
-		<PackageReference Include="ClosedXML" Version="0.105.0" />
-		<PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+		<!-- اگر بعداً MediatR یا بسته‌های دیگر نیاز شد اضافه کن -->
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Domain\Domain.csproj" />
-		<ProjectReference Include="..\Shared\Shared.csproj" />
+	  <ProjectReference Include="..\New_Src\Domain\Domain.csproj" />
+	  <ProjectReference Include="..\New_Src\Shared\Shared.csproj" />
 	</ItemGroup>
 
 </Project>

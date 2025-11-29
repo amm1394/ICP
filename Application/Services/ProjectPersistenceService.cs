@@ -1,113 +1,90 @@
-﻿using Domain.Entities;
-using Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using Shared.Wrapper;
+﻿using Shared.Wrapper;
+using System.Collections.Concurrent;
 
 namespace Application.Services;
 
+// In-memory implementation (lightweight) for development / testing.
+// This implementation DOES NOT depend on EF or SQL Server.
 public class ProjectPersistenceService : IProjectPersistenceService
 {
-    private readonly IsatisDbContext _db;
+    private readonly ConcurrentDictionary<Guid, StoredProject> _store = new();
 
-    public ProjectPersistenceService(IsatisDbContext db)
+    private class StoredProject
     {
-        _db = db;
+        public Guid ProjectId { get; init; }
+        public string ProjectName { get; set; } = string.Empty;
+        public string? Owner { get; set; }
+        public DateTime CreatedAt { get; init; }
+        public DateTime LastModifiedAt { get; set; }
+        public List<RawDataDto> RawRows { get; } = new();
+        public List<(DateTime Timestamp, string Data, string? Description)> States { get; } = new();
     }
 
-    public async Task<Result<ProjectSaveResult>> SaveProjectAsync(Guid projectId, string projectName, string? owner, List<RawDataDto>? rawRows, string? stateJson)
+    public Task<Result<ProjectSaveResult>> SaveProjectAsync(Guid projectId, string projectName, string? owner, List<RawDataDto>? rawRows, string? stateJson)
     {
-        using var tx = await _db.Database.BeginTransactionAsync();
-
         try
         {
-            var project = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId);
             var now = DateTime.UtcNow;
+            var id = projectId == Guid.Empty ? Guid.NewGuid() : projectId;
 
-            if (project == null)
+            var stored = _store.GetOrAdd(id, _ => new StoredProject
             {
-                project = new Project
-                {
-                    ProjectId = projectId == Guid.Empty ? Guid.NewGuid() : projectId,
-                    ProjectName = projectName,
-                    CreatedAt = now,
-                    LastModifiedAt = now,
-                    Owner = owner
-                };
-                _db.Projects.Add(project);
-            }
-            else
-            {
-                project.ProjectName = projectName;
-                project.LastModifiedAt = now;
-                project.Owner = owner;
-                _db.Projects.Update(project);
-            }
+                ProjectId = id,
+                ProjectName = projectName,
+                Owner = owner,
+                CreatedAt = now,
+                LastModifiedAt = now
+            });
 
+            // update metadata
+            stored.ProjectName = projectName;
+            stored.Owner = owner;
+            stored.LastModifiedAt = now;
+
+            // append raw rows (caller semantics: append). If replace semantics desired, clear first.
             if (rawRows != null && rawRows.Count > 0)
             {
-                // For simplicity, append raw rows. If you want replace semantics, clear old rows first.
-                foreach (var r in rawRows)
-                {
-                    _db.RawDataRows.Add(new RawDataRow
-                    {
-                        ProjectId = project.ProjectId,
-                        ColumnData = r.ColumnData,
-                        SampleId = r.SampleId
-                    });
-                }
+                stored.RawRows.AddRange(rawRows);
             }
 
             if (!string.IsNullOrEmpty(stateJson))
             {
-                _db.ProjectStates.Add(new ProjectState
-                {
-                    ProjectId = project.ProjectId,
-                    Data = stateJson,
-                    Timestamp = now,
-                    Description = "ManualSave"
-                });
+                stored.States.Add((now, stateJson, "ManualSave"));
             }
 
-            await _db.SaveChangesAsync();
-            await tx.CommitAsync();
-
-            return Result<ProjectSaveResult>.Success(new ProjectSaveResult(project.ProjectId));
+            var result = new ProjectSaveResult(stored.ProjectId);
+            return Task.FromResult(Result<ProjectSaveResult>.Success(result));
         }
         catch (Exception ex)
         {
-            await tx.RollbackAsync();
-            return Result<ProjectSaveResult>.Fail($"Save failed: {ex.Message}");
+            return Task.FromResult(Result<ProjectSaveResult>.Fail($"Save failed: {ex.Message}"));
         }
     }
 
-    public async Task<Result<ProjectLoadDto>> LoadProjectAsync(Guid projectId)
+    public Task<Result<ProjectLoadDto>> LoadProjectAsync(Guid projectId)
     {
         try
         {
-            var project = await _db.Projects
-                .Include(p => p.RawDataRows)
-                .Include(p => p.ProjectStates)
-                .FirstOrDefaultAsync(p => p.ProjectId == projectId);
+            if (!_store.TryGetValue(projectId, out var stored))
+                return Task.FromResult(Result<ProjectLoadDto>.Fail("Project not found."));
 
-            if (project == null)
-                return Result<ProjectLoadDto>.Fail("Project not found.");
+            var latestState = stored.States.OrderByDescending(s => s.Timestamp).FirstOrDefault().Data;
 
-            var rawRows = project.RawDataRows
-                .OrderBy(r => r.DataId)
-                .Select(r => new RawDataDto(r.ColumnData, r.SampleId))
-                .ToList();
+            var dto = new ProjectLoadDto(
+                stored.ProjectId,
+                stored.ProjectName,
+                stored.CreatedAt,
+                stored.LastModifiedAt,
+                stored.Owner,
+                stored.RawRows.ToList(),
+                latestState
+            );
 
-            var latestState = project.ProjectStates
-                .OrderByDescending(s => s.Timestamp)
-                .FirstOrDefault()?.Data;
-
-            var dto = new ProjectLoadDto(project.ProjectId, project.ProjectName, project.CreatedAt, project.LastModifiedAt, project.Owner, rawRows, latestState);
-
-            return Result<ProjectLoadDto>.Success(dto);
+            return Task.FromResult(Result<ProjectLoadDto>.Success(dto));
         }
         catch (Exception ex)
         {
-            return Result<ProjectLoadDto>.Fail($"Load failed: {ex.Message}");
+            return Task.FromResult(Result<ProjectLoadDto>.Fail($"Load failed: {ex.Message}"));
         }
     }
 }
