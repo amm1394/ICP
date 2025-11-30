@@ -28,23 +28,24 @@ namespace Infrastructure.Services
 
         /// <summary>
         /// صف‌بندی پردازش پروژه.
-        /// فعلاً به صورت فیل‌بک با اجرای هم‌زمان عمل می‌کند و ساختار Data شامل projectStateId یا jobId خواهد بود.
-        /// در آینده می‌توان این متد را تغییر داد تا job در جدول ProjectImportJobs ایجاد کند و jobId برگرداند.
+        /// فعلاً به صورت فیل‌بک با اجرای هم‌زمان عمل می‌کند و برای مسیر background می‌تواند jobId یا projectStateId برگرداند.
         /// </summary>
         public async Task<ProcessingResult> EnqueueProcessProjectAsync(Guid projectId, CancellationToken cancellationToken = default)
         {
-            // ساده‌سازی: فعلاً همان ProcessProjectAsync را فراخوانی می‌کنیم و projectStateId را در Data برمی‌گردانیم.
+            // ساده‌سازی فعلی: مستقیماً پردازش را اجرا می‌کنیم و projectStateId را برمی‌گردانیم.
+            // در آینده این متد باید job واقعی در DB ایجاد کند و jobId را برگرداند.
             var result = await ProcessProjectAsync(projectId, overwriteLatestState: true, cancellationToken);
 
             if (!result.Succeeded)
-                return ProcessingResult.Failure(result.Error ?? "Processing failed", data: result.Data);
+                return ProcessingResult.Failure(result.Error ?? "Processing failed", data: null);
 
-            // اگر ProcessProjectAsync موفق بوده، result.Data ممکن است حاوی projectStateId
+            // result.Data is expected to be an int (projectStateId) after ProcessProjectAsync fix
             return ProcessingResult.Success(result.Data, Array.Empty<string>());
         }
 
         /// <summary>
-        /// پردازش هم‌زمان پروژه: همان منطق سابق با بازگرداندن Data حاوی projectStateId.
+        /// پردازش هم‌زمان پروژه: خواندن RawDataRows، محاسبه‌ی summary و ذخیره‌ی ProcessedData و ProjectState.
+        /// Data در ProcessingResult به صورت عددی (projectStateId) بازگردانده می‌شود.
         /// </summary>
         public async Task<ProcessingResult> ProcessProjectAsync(Guid projectId, bool overwriteLatestState = true, CancellationToken cancellationToken = default)
         {
@@ -89,10 +90,11 @@ namespace Infrastructure.Services
                     await _db.Set<ProjectState>().AddAsync(emptyState, cancellationToken);
                     await _db.SaveChangesAsync(cancellationToken);
 
-                    return ProcessingResult.Success(new { projectStateId = emptyState.StateId }, Array.Empty<string>());
+                    // Return the numeric state id as Data (not an anonymous object)
+                    return ProcessingResult.Success(emptyState.StateId, Array.Empty<string>());
                 }
 
-                // Parse JSON rows and collect numeric values per key
+                // Parse JSON rows and bucket numeric values by key
                 var numericBuckets = new Dictionary<string, List<double>>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var cd in rawRows)
@@ -199,8 +201,8 @@ namespace Infrastructure.Services
                     _logger.LogInformation("Processed project {ProjectId}: ProcessedId={ProcessedId}, ProjectStateId={StateId}",
                         projectId, processed.ProcessedId, state.StateId);
 
-                    // Return Data with projectStateId (controller expects .Data)
-                    return ProcessingResult.Success(new { projectStateId = state.StateId }, Array.Empty<string>());
+                    // Return the numeric state id as Data (so the controller wraps it as { projectStateId: <number> })
+                    return ProcessingResult.Success(state.StateId, Array.Empty<string>());
                 }
                 catch (Exception ex)
                 {
