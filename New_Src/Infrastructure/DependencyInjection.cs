@@ -16,26 +16,29 @@ public static class DependencyInjection
         services.AddDbContext<IsatisDbContext>(options => options.UseSqlServer(connectionString));
 
         // Persistence implementations
-        services.AddScoped<Application.Services.IProjectPersistenceService, Infrastructure.Services.ProjectPersistenceService>();
+        services.AddScoped<IProjectPersistenceService, ProjectPersistenceService>();
 
         // Import service
-        services.AddScoped<Application.Services.IImportService, Infrastructure.Services.ImportService>();
+        services.AddScoped<IImportService, ImportService>();
 
         // Background import queue
-        services.AddSingleton<Infrastructure.Services.BackgroundImportQueueService>();
-        services.AddSingleton<Application.Services.IImportQueueService>(sp => sp.GetRequiredService<Infrastructure.Services.BackgroundImportQueueService>());
-        services.AddHostedService(sp => sp.GetRequiredService<Infrastructure.Services.BackgroundImportQueueService>());
+        services.AddSingleton<BackgroundImportQueueService>();
+        services.AddSingleton<IImportQueueService>(sp => sp.GetRequiredService<BackgroundImportQueueService>());
+        services.AddHostedService(sp => sp.GetRequiredService<BackgroundImportQueueService>());
 
         // Processing services
-        services.AddScoped<Application.Services.IProcessingService, Infrastructure.Services.ProcessingService>();
-        services.AddScoped<Application.Services.IRowProcessor, Infrastructure.Services.Processors.ComputeStatisticsProcessor>();
+        services.AddScoped<IProcessingService, ProcessingService>();
+        services.AddScoped<IRowProcessor, Infrastructure.Services.Processors.ComputeStatisticsProcessor>();
 
-        // ✅ NEW: CRM Service
-        services.AddScoped<Application.Services.ICrmService, Infrastructure.Services.CrmService>();
+        // CRM Service
+        services.AddScoped<ICrmService, CrmService>();
+
+        // Pivot Service
+        services.AddScoped<IPivotService, PivotService>();
 
         // Cleanup hosted service
-        services.AddSingleton<Infrastructure.Services.CleanupHostedService>();
-        services.AddHostedService(sp => sp.GetRequiredService<Infrastructure.Services.CleanupHostedService>());
+        services.AddSingleton<CleanupHostedService>();
+        services.AddHostedService(sp => sp.GetRequiredService<CleanupHostedService>());
 
         return services;
     }

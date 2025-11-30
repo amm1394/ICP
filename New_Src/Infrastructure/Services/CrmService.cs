@@ -441,16 +441,33 @@ public class CrmService : ICrmService
     /// </summary>
     private static string? FindCrmMatch(string label, List<string> patterns)
     {
-        label = label.Trim().ToLower();
+        if (string.IsNullOrWhiteSpace(label))
+            return null;
+
+        label = label.Trim();
 
         foreach (var pattern in patterns)
         {
-            // Pattern: (? i)(? :(? :^|(? <=\s))(?:CRM|OREAS)?\s*{pattern}(?:[a-zA-Z0-9]{0,2})?\b)
-            var regex = new Regex($@"(?i)(? :(?:^|(?<=\s))(?:CRM|OREAS)?\s*({pattern}(?:[a-zA-Z0-9]{{0,2}})?)\b)", RegexOptions.IgnoreCase);
-            var match = regex.Match(label);
-            if (match.Success)
+            // Simple pattern: look for CRM/OREAS followed by the pattern number
+            // Examples: "OREAS 258", "CRM258", "258a", "OREAS-258"
+            var regexPattern = $@"(?:CRM|OREAS)? [\s\-]*({Regex.Escape(pattern)}[a-zA-Z0-9]{{0,2}})\b";
+
+            try
             {
-                return match.Groups[1].Value.Trim();
+                var regex = new Regex(regexPattern, RegexOptions.IgnoreCase);
+                var match = regex.Match(label);
+                if (match.Success)
+                {
+                    return match.Groups[1].Value.Trim();
+                }
+            }
+            catch
+            {
+                // If regex fails, try simple contains
+                if (label.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                {
+                    return pattern;
+                }
             }
         }
 
