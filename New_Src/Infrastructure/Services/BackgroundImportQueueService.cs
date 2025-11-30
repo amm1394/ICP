@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.IO;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Infrastructure.Persistence;
-using Application.Services;
+﻿using Application.Services;
 using Domain.Entities;
+using Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Threading.Channels;
 
 namespace Infrastructure.Services
 {
@@ -19,9 +14,8 @@ namespace Infrastructure.Services
     /// - Persists ProjectImportJobs records in DB (created when enqueued).
     /// - Maintains an in-memory status map (_statuses) for quick reads.
     /// - Uses IImportService to perform the actual import and reports progress back to DB.
-    ///
-    /// This implementation implements the Application.Services.IImportQueueService interface
-    /// so it can be registered as the app-facing queue service.
+    /// 
+    /// Implements Application.Services.IImportQueueService so it can be registered and resolved by DI.
     /// </summary>
     public class BackgroundImportQueueService : BackgroundService, IImportQueueService, IDisposable
     {
@@ -48,7 +42,7 @@ namespace Infrastructure.Services
             if (csvStream == null) throw new ArgumentNullException(nameof(csvStream));
             var jobId = Guid.NewGuid();
 
-            // Persist job record in DB (ProjectImportJob doesn't contain Owner/StateJson fields)
+            // Persist job record in DB
             try
             {
                 using var scope = _serviceProvider.CreateScope();
@@ -64,8 +58,13 @@ namespace Infrastructure.Services
                     Percent = 0,
                     ProcessedRows = 0,
                     TotalRows = 0,
-                    Message = "Queued"
-                    // TempFilePath can be set here if you persist the uploaded file to disk.
+                    Message = "Queued",
+
+                    // Initialize idempotency/retry fields (migration must exist)
+                    OperationId = Guid.NewGuid(),
+                    Attempts = 0,
+                    LastError = null,
+                    NextAttemptAt = null
                 };
 
                 db.ProjectImportJobs.Add(entity);
@@ -81,7 +80,7 @@ namespace Infrastructure.Services
             var copy = new MemoryStream();
             try
             {
-                csvStream.Position = 0;
+                if (csvStream.CanSeek) csvStream.Position = 0;
             }
             catch
             {
@@ -159,6 +158,7 @@ namespace Infrastructure.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Unhandled exception while processing import job {JobId}", req.JobId);
+
                     // persist failed state
                     try
                     {
@@ -170,6 +170,8 @@ namespace Infrastructure.Services
                             entity2.State = (int)Shared.Models.ImportJobState.Failed;
                             entity2.Message = ex.Message;
                             entity2.UpdatedAt = DateTime.UtcNow;
+                            entity2.Attempts += 1;
+                            entity2.LastError = ex.Message;
                             db2.ProjectImportJobs.Update(entity2);
                             await db2.SaveChangesAsync();
                         }
@@ -241,6 +243,7 @@ namespace Infrastructure.Services
                         entityP.Percent = percent;
                         entityP.UpdatedAt = DateTime.UtcNow;
                         entityP.Message = "Running";
+                        entityP.Attempts = Math.Max(entityP.Attempts, 0);
                         dbP.ProjectImportJobs.Update(entityP);
                         await dbP.SaveChangesAsync();
                     }
@@ -301,6 +304,8 @@ namespace Infrastructure.Services
                         entity.State = (int)Shared.Models.ImportJobState.Failed;
                         entity.Message = msg;
                         entity.UpdatedAt = DateTime.UtcNow;
+                        entity.Attempts += 1;
+                        entity.LastError = msg;
                         db.ProjectImportJobs.Update(entity);
                         await db.SaveChangesAsync();
                     }

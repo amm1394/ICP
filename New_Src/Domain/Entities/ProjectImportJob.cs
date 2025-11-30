@@ -26,9 +26,22 @@ public class ProjectImportJob
 
     public string? Message { get; set; }
 
-    // NEW: path to temporary uploaded file on disk
+    // NEW: path to temporary uploaded file on disk (already existed)
     public string? TempFilePath { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+
+    // --- NEW fields for idempotency / retries ---
+    // Optional operation identifier (useful when client provides an idempotency key)
+    public Guid? OperationId { get; set; }
+
+    // Number of attempts performed for this job
+    public int Attempts { get; set; } = 0;
+
+    // Last error message recorded for this job (if any)
+    public string? LastError { get; set; }
+
+    // When to try the next attempt (for backoff scheduling)
+    public DateTime? NextAttemptAt { get; set; }
 }
