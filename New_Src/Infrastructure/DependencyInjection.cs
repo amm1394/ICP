@@ -50,6 +50,9 @@ public static class DependencyInjection
         // Drift Correction Service
         services.AddScoped<IDriftCorrectionService, DriftCorrectionService>();
 
+        // Optimization Service
+        services.AddScoped<IOptimizationService, OptimizationService>();
+
         // Cleanup hosted service
         services.AddSingleton<CleanupHostedService>();
         services.AddHostedService(sp => sp.GetRequiredService<CleanupHostedService>());

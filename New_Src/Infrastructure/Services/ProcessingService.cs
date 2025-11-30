@@ -12,11 +12,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Infrastructure.Services
 {
-    /// <summary>
-    /// Implementation of IProcessingService.
-    /// - EnqueueProcessProjectAsync: create a process job via IImportQueueService so it's both persisted and enqueued.
-    /// - ProcessProjectAsync: run the processing logic (compute summary, persist ProcessedData + ProjectState).
-    /// </summary>
     public class ProcessingService : IProcessingService
     {
         private readonly IsatisDbContext _db;
@@ -30,10 +25,6 @@ namespace Infrastructure.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        /// <summary>
-        /// Enqueue processing: create a job row via the queue service so it's both persisted and enqueued into the in-memory channel.
-        /// Returns ProcessingResult with Data = jobId (Guid) on success.
-        /// </summary>
         public async Task<ProcessingResult> EnqueueProcessProjectAsync(Guid projectId, CancellationToken cancellationToken = default)
         {
             if (projectId == Guid.Empty)
@@ -41,7 +32,6 @@ namespace Infrastructure.Services
 
             try
             {
-                // Use the central queue service to create+enqueue the process job
                 var jobId = await _queue.EnqueueProcessJobAsync(projectId);
                 return ProcessingResult.Success(jobId, Array.Empty<string>());
             }
@@ -52,10 +42,6 @@ namespace Infrastructure.Services
             }
         }
 
-        /// <summary>
-        /// Process a project synchronously (used by background worker).
-        /// Returns ProcessingResult with Data = numeric projectStateId (int) on success.
-        /// </summary>
         public async Task<ProcessingResult> ProcessProjectAsync(Guid projectId, bool overwriteLatestState = true, CancellationToken cancellationToken = default)
         {
             if (projectId == Guid.Empty)
@@ -63,7 +49,6 @@ namespace Infrastructure.Services
 
             try
             {
-                // Check project exists
                 var project = await _db.Projects
                                        .AsNoTracking()
                                        .FirstOrDefaultAsync(p => p.ProjectId == projectId, cancellationToken);
@@ -71,7 +56,6 @@ namespace Infrastructure.Services
                 if (project is null)
                     return ProcessingResult.Failure("Project not found");
 
-                // Load raw rows' ColumnData
                 var rawRows = await _db.Set<RawDataRow>()
                                        .AsNoTracking()
                                        .Where(r => r.ProjectId == projectId)
@@ -99,11 +83,9 @@ namespace Infrastructure.Services
                     await _db.Set<ProjectState>().AddAsync(emptyState, cancellationToken);
                     await _db.SaveChangesAsync(cancellationToken);
 
-                    // Return the numeric state id as Data
                     return ProcessingResult.Success(emptyState.StateId, Array.Empty<string>());
                 }
 
-                // Parse JSON rows and bucket numeric values by key
                 var numericBuckets = new Dictionary<string, List<double>>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var cd in rawRows)
@@ -137,7 +119,6 @@ namespace Infrastructure.Services
                     }
                 }
 
-                // Build summary
                 var summary = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
                 foreach (var kv in numericBuckets)
                 {
@@ -158,7 +139,6 @@ namespace Infrastructure.Services
 
                 var snapshotJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = false });
 
-                // Determine next ProcessedId
                 var nextProcessedId = 1;
                 try
                 {
@@ -189,36 +169,39 @@ namespace Infrastructure.Services
                     Timestamp = DateTime.UtcNow
                 };
 
-                // Persist within a transaction
-                await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
-                try
-                {
-                    await _db.Set<ProcessedData>().AddAsync(processed, cancellationToken);
-                    await _db.Set<ProjectState>().AddAsync(state, cancellationToken);
+                // Use execution strategy for retry-safe transactions
+                var strategy = _db.Database.CreateExecutionStrategy();
 
-                    // Update project's LastModifiedAt
-                    var existingProject = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId, cancellationToken);
-                    if (existingProject != null)
+                return await strategy.ExecuteAsync(async () =>
+                {
+                    await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+                    try
                     {
-                        existingProject.LastModifiedAt = DateTime.UtcNow;
-                        _db.Projects.Update(existingProject);
+                        await _db.Set<ProcessedData>().AddAsync(processed, cancellationToken);
+                        await _db.Set<ProjectState>().AddAsync(state, cancellationToken);
+
+                        var existingProject = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId, cancellationToken);
+                        if (existingProject != null)
+                        {
+                            existingProject.LastModifiedAt = DateTime.UtcNow;
+                            _db.Projects.Update(existingProject);
+                        }
+
+                        await _db.SaveChangesAsync(cancellationToken);
+                        await tx.CommitAsync(cancellationToken);
+
+                        _logger.LogInformation("Processed project {ProjectId}: ProcessedId={ProcessedId}, ProjectStateId={StateId}",
+                            projectId, processed.ProcessedId, state.StateId);
+
+                        return ProcessingResult.Success(state.StateId, Array.Empty<string>());
                     }
-
-                    await _db.SaveChangesAsync(cancellationToken);
-                    await tx.CommitAsync(cancellationToken);
-
-                    _logger.LogInformation("Processed project {ProjectId}: ProcessedId={ProcessedId}, ProjectStateId={StateId}",
-                        projectId, processed.ProcessedId, state.StateId);
-
-                    // Return the numeric state id as Data
-                    return ProcessingResult.Success(state.StateId, Array.Empty<string>());
-                }
-                catch (Exception ex)
-                {
-                    try { await tx.RollbackAsync(cancellationToken); } catch { /* swallow */ }
-                    _logger.LogError(ex, "Processing failed for project {ProjectId}", projectId);
-                    return ProcessingResult.Failure($"Processing failed: {ex.Message}");
-                }
+                    catch (Exception ex)
+                    {
+                        try { await tx.RollbackAsync(cancellationToken); } catch { }
+                        _logger.LogError(ex, "Processing failed for project {ProjectId}", projectId);
+                        return ProcessingResult.Failure($"Processing failed: {ex.Message}");
+                    }
+                });
             }
             catch (OperationCanceledException)
             {

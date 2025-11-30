@@ -1,4 +1,6 @@
-﻿namespace Application.DTOs;
+﻿using System.Text.Json.Serialization;
+
+namespace Application.DTOs;
 
 /// <summary>
 /// Request for drift correction analysis
@@ -15,19 +17,13 @@ public record DriftCorrectionRequest(
 /// <summary>
 /// Drift correction method
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum DriftMethod
 {
-    /// <summary>No drift correction</summary>
-    None,
-
-    /// <summary>Linear interpolation between standards</summary>
-    Linear,
-
-    /// <summary>Stepwise correction (apply at each standard)</summary>
-    Stepwise,
-
-    /// <summary>Polynomial fit</summary>
-    Polynomial
+    None = 0,
+    Linear = 1,
+    Stepwise = 2,
+    Polynomial = 3
 }
 
 /// <summary>
@@ -91,12 +87,13 @@ public record SlopeOptimizationRequest(
 /// <summary>
 /// Slope optimization actions
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SlopeAction
 {
-    ZeroSlope,
-    RotateUp,
-    RotateDown,
-    SetCustom
+    ZeroSlope = 0,
+    RotateUp = 1,
+    RotateDown = 2,
+    SetCustom = 3
 }
 
 /// <summary>

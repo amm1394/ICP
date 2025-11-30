@@ -6,7 +6,6 @@ using Shared.Wrapper;
 
 namespace Infrastructure.Services;
 
-// EF Core implementation that persists projects to SQL Server using IsatisDbContext.
 public class ProjectPersistenceService : IProjectPersistenceService
 {
     private readonly IsatisDbContext _db;
@@ -18,67 +17,73 @@ public class ProjectPersistenceService : IProjectPersistenceService
 
     public async Task<Result<ProjectSaveResult>> SaveProjectAsync(Guid projectId, string projectName, string? owner, List<RawDataDto>? rawRows, string? stateJson)
     {
-        using var tx = await _db.Database.BeginTransactionAsync();
+        // Use execution strategy for retry-safe transactions
+        var strategy = _db.Database.CreateExecutionStrategy();
 
-        try
+        return await strategy.ExecuteAsync(async () =>
         {
-            var project = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId);
-            var now = DateTime.UtcNow;
+            using var tx = await _db.Database.BeginTransactionAsync();
 
-            if (project == null)
+            try
             {
-                project = new Project
-                {
-                    ProjectId = projectId == Guid.Empty ? Guid.NewGuid() : projectId,
-                    ProjectName = projectName,
-                    CreatedAt = now,
-                    LastModifiedAt = now,
-                    Owner = owner
-                };
-                _db.Projects.Add(project);
-            }
-            else
-            {
-                project.ProjectName = projectName;
-                project.LastModifiedAt = now;
-                project.Owner = owner;
-                _db.Projects.Update(project);
-            }
+                var project = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId);
+                var now = DateTime.UtcNow;
 
-            if (rawRows != null && rawRows.Count > 0)
-            {
-                foreach (var r in rawRows)
+                if (project == null)
                 {
-                    _db.RawDataRows.Add(new RawDataRow
+                    project = new Project
+                    {
+                        ProjectId = projectId == Guid.Empty ? Guid.NewGuid() : projectId,
+                        ProjectName = projectName,
+                        CreatedAt = now,
+                        LastModifiedAt = now,
+                        Owner = owner
+                    };
+                    _db.Projects.Add(project);
+                }
+                else
+                {
+                    project.ProjectName = projectName;
+                    project.LastModifiedAt = now;
+                    project.Owner = owner;
+                    _db.Projects.Update(project);
+                }
+
+                if (rawRows != null && rawRows.Count > 0)
+                {
+                    foreach (var r in rawRows)
+                    {
+                        _db.RawDataRows.Add(new RawDataRow
+                        {
+                            ProjectId = project.ProjectId,
+                            ColumnData = r.ColumnData,
+                            SampleId = r.SampleId
+                        });
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(stateJson))
+                {
+                    _db.ProjectStates.Add(new ProjectState
                     {
                         ProjectId = project.ProjectId,
-                        ColumnData = r.ColumnData,
-                        SampleId = r.SampleId
+                        Data = stateJson,
+                        Timestamp = now,
+                        Description = "ManualSave"
                     });
                 }
-            }
 
-            if (!string.IsNullOrEmpty(stateJson))
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                return Result<ProjectSaveResult>.Success(new ProjectSaveResult(project.ProjectId));
+            }
+            catch (Exception ex)
             {
-                _db.ProjectStates.Add(new ProjectState
-                {
-                    ProjectId = project.ProjectId,
-                    Data = stateJson,
-                    Timestamp = now,
-                    Description = "ManualSave"
-                });
+                try { await tx.RollbackAsync(); } catch { }
+                return Result<ProjectSaveResult>.Fail($"Save failed: {ex.Message}");
             }
-
-            await _db.SaveChangesAsync();
-            await tx.CommitAsync();
-
-            return Result<ProjectSaveResult>.Success(new ProjectSaveResult(project.ProjectId));
-        }
-        catch (Exception ex)
-        {
-            try { await tx.RollbackAsync(); } catch { /* ignore */ }
-            return Result<ProjectSaveResult>.Fail($"Save failed: {ex.Message}");
-        }
+        });
     }
 
     public async Task<Result<ProjectLoadDto>> LoadProjectAsync(Guid projectId)
@@ -110,7 +115,6 @@ public class ProjectPersistenceService : IProjectPersistenceService
         }
     }
 
-    // new: list projects with pagination
     public async Task<Result<List<ProjectListItemDto>>> ListProjectsAsync(int page = 1, int pageSize = 20)
     {
         try
@@ -143,25 +147,29 @@ public class ProjectPersistenceService : IProjectPersistenceService
         }
     }
 
-    // new: delete project and its related data (cascade)
     public async Task<Result<bool>> DeleteProjectAsync(Guid projectId)
     {
-        using var tx = await _db.Database.BeginTransactionAsync();
-        try
-        {
-            var project = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId);
-            if (project == null)
-                return Result<bool>.Fail("Project not found.");
+        var strategy = _db.Database.CreateExecutionStrategy();
 
-            _db.Projects.Remove(project);
-            await _db.SaveChangesAsync();
-            await tx.CommitAsync();
-            return Result<bool>.Success(true);
-        }
-        catch (Exception ex)
+        return await strategy.ExecuteAsync(async () =>
         {
-            try { await tx.RollbackAsync(); } catch { /* ignore */ }
-            return Result<bool>.Fail($"Delete failed: {ex.Message}");
-        }
+            using var tx = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var project = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId);
+                if (project == null)
+                    return Result<bool>.Fail("Project not found.");
+
+                _db.Projects.Remove(project);
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+                return Result<bool>.Success(true);
+            }
+            catch (Exception ex)
+            {
+                try { await tx.RollbackAsync(); } catch { }
+                return Result<bool>.Fail($"Delete failed: {ex.Message}");
+            }
+        });
     }
 }
