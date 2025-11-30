@@ -13,7 +13,12 @@ public static class DependencyInjection
     {
         // Database
         var connectionString = configuration.GetConnectionString("DefaultConnection");
-        services.AddDbContext<IsatisDbContext>(options => options.UseSqlServer(connectionString));
+        services.AddDbContext<IsatisDbContext>(options =>
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.CommandTimeout(180);
+                sqlOptions.EnableRetryOnFailure(3);
+            }));
 
         // Persistence implementations
         services.AddScoped<IProjectPersistenceService, ProjectPersistenceService>();
@@ -36,10 +41,14 @@ public static class DependencyInjection
         // Pivot Service
         services.AddScoped<IPivotService, PivotService>();
 
+        // RM Check Service
         services.AddScoped<IRmCheckService, RmCheckService>();
 
         // Report Service
         services.AddScoped<IReportService, ReportService>();
+
+        // Drift Correction Service
+        services.AddScoped<IDriftCorrectionService, DriftCorrectionService>();
 
         // Cleanup hosted service
         services.AddSingleton<CleanupHostedService>();
