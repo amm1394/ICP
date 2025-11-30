@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 
 namespace Api.Tests.Integration
 {
-    // Conservative integration test skeleton.
-    // Requires an already-running API on http://localhost:5268 and TEST_PROJECT_ID env var set.
+    /// <summary>
+    /// Conservative integration test skeleton. 
+    /// Requires an already-running API on http://localhost:5268 and TEST_PROJECT_ID env var set.
+    /// </summary>
     public class ProcessWorkflowTests
     {
         private const string BaseUrl = "http://localhost:5268";
@@ -18,7 +21,7 @@ namespace Api.Tests.Integration
             var projectIdStr = Environment.GetEnvironmentVariable("TEST_PROJECT_ID");
             if (string.IsNullOrWhiteSpace(projectIdStr))
             {
-                // Skip test if no project id is provided to avoid failures in CI without fixture.
+                // Skip test if no project id is provided to avoid failures in CI without fixture. 
                 return;
             }
 
@@ -30,11 +33,19 @@ namespace Api.Tests.Integration
             using var client = new HttpClient { BaseAddress = new Uri(BaseUrl) };
 
             // Enqueue process
-            var enqueueResp = await client.PostAsync($"/api/projects/{projectId}/process?background=true", null);
+            var enqueueResp = await client.PostAsync($"/api/projects/{projectId}/process? background=true", null);
             enqueueResp.EnsureSuccessStatusCode();
-            var enqueueBody = await enqueueResp.Content.ReadFromJsonAsync<dynamic>();
-            // Expect { data: { jobId: "..." }, succeeded: true, messages: [] }
-            string jobId = enqueueBody?.data?.jobId;
+
+            var enqueueBody = await enqueueResp.Content.ReadFromJsonAsync<JsonElement>();
+
+            // Extract jobId safely using JsonElement
+            string? jobId = null;
+            if (enqueueBody.TryGetProperty("data", out var dataElement) &&
+                dataElement.TryGetProperty("jobId", out var jobIdElement))
+            {
+                jobId = jobIdElement.GetString();
+            }
+
             Assert.False(string.IsNullOrWhiteSpace(jobId), "jobId should be returned");
 
             // Poll status with timeout
@@ -49,8 +60,16 @@ namespace Api.Tests.Integration
                     continue;
                 }
 
-                var statusBody = await statusResp.Content.ReadFromJsonAsync<dynamic>();
-                var state = (string)statusBody?.data?.state;
+                var statusBody = await statusResp.Content.ReadFromJsonAsync<JsonElement>();
+
+                // Extract state safely using JsonElement
+                string? state = null;
+                if (statusBody.TryGetProperty("data", out var statusDataElement) &&
+                    statusDataElement.TryGetProperty("state", out var stateElement))
+                {
+                    state = stateElement.GetString();
+                }
+
                 if (state == "Completed" || state == "Failed")
                 {
                     Assert.True(true);
