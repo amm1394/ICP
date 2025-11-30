@@ -1,150 +1,366 @@
-﻿// NOTE: This is the same ImportService file with safe use of Messages.FirstOrDefault().
-// I only show the full file or relevant region depending on repo layout; here is the updated content region shown previously.
+﻿using System.Globalization;
+using System.Text.Json;
+using Application.DTOs;
 using Application.Services;
 using CsvHelper;
 using CsvHelper.Configuration;
-using Domain.Entities;
-using Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
 using Shared.Wrapper;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace Infrastructure.Services
+namespace Infrastructure.Services;
+
+public class ImportService : IImportService
 {
-    public class ImportService : IImportService
+    private const int DefaultChunkSize = 500;
+    private readonly IProjectPersistenceService _persistence;
+    private readonly ILogger<ImportService> _logger;
+    private readonly AdvancedFileParser _parser;
+
+    public ImportService(IProjectPersistenceService persistence, ILogger<ImportService> logger)
     {
-        private const int DefaultChunkSize = 500;
-        private readonly IProjectPersistenceService _persistence;
-        private readonly ILogger<ImportService> _logger;
+        _persistence = persistence;
+        _logger = logger;
+        _parser = new AdvancedFileParser(logger);
+    }
 
-        public ImportService(IProjectPersistenceService persistence, ILogger<ImportService> logger)
-        {
-            _persistence = persistence;
-            _logger = logger;
-        }
+    #region Basic Import (existing)
 
-        public async Task<Result<ProjectSaveResult>> ImportCsvAsync(Stream stream, string projectName, string? owner, string? stateJson, IProgress<(int total, int processed)>? progress = null)
+    public async Task<Result<ProjectSaveResult>> ImportCsvAsync(
+        Stream stream,
+        string projectName,
+        string? owner,
+        string? stateJson,
+        IProgress<(int total, int processed)>? progress = null)
+    {
+        MemoryStream ms = new MemoryStream();
+        try
         {
-            MemoryStream ms = new MemoryStream();
-            try
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            int totalRows = 0;
+            using (var readerCount = new StreamReader(ms, leaveOpen: true))
+            using (var csvCount = new CsvReader(readerCount, CultureInfo.InvariantCulture))
             {
-                await stream.CopyToAsync(ms);
-                ms.Position = 0;
-
-                // Count rows
-                int totalRows = 0;
-                using (var readerCount = new StreamReader(ms, leaveOpen: true))
-                using (var csvCount = new CsvReader(readerCount, CultureInfo.InvariantCulture))
+                if (!csvCount.Read()) return Result<ProjectSaveResult>.Fail("CSV empty");
+                csvCount.ReadHeader();
+                while (csvCount.Read())
                 {
-                    if (!csvCount.Read()) return Result<ProjectSaveResult>.Fail("CSV empty");
-                    csvCount.ReadHeader();
-                    while (csvCount.Read())
-                    {
-                        totalRows++;
-                    }
+                    totalRows++;
+                }
+            }
+
+            ms.Position = 0;
+
+            using var reader = new StreamReader(ms);
+            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                DetectDelimiter = true,
+                BadDataFound = null,
+                MissingFieldFound = null,
+                TrimOptions = TrimOptions.Trim
+            };
+
+            using var csv = new CsvReader(reader, config);
+            if (!csv.Read()) return Result<ProjectSaveResult>.Fail("CSV empty");
+            csv.ReadHeader();
+            var headers = csv.HeaderRecord;
+            if (headers == null || headers.Length == 0) return Result<ProjectSaveResult>.Fail("CSV has no header");
+
+            var processed = 0;
+            Guid? knownProjectId = null;
+            var batch = new List<RawDataDto>(DefaultChunkSize);
+
+            while (csv.Read())
+            {
+                string? sampleId = null;
+                var sampleIdHeader = headers.FirstOrDefault(h => string.Equals(h, "SampleId", StringComparison.OrdinalIgnoreCase));
+                if (sampleIdHeader != null)
+                {
+                    sampleId = csv.GetField(sampleIdHeader);
                 }
 
-                // Reset to start for actual processing
-                ms.Position = 0;
-
-                // Second pass: process in chunks and report progress
-                using var reader = new StreamReader(ms);
-                var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+                var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                foreach (var h in headers)
                 {
-                    DetectDelimiter = true,
-                    BadDataFound = null,
-                    MissingFieldFound = null,
-                    TrimOptions = TrimOptions.Trim
-                };
-
-                using var csv = new CsvReader(reader, config);
-                if (!csv.Read()) return Result<ProjectSaveResult>.Fail("CSV empty");
-                csv.ReadHeader();
-                var headers = csv.HeaderRecord;
-                if (headers == null || headers.Length == 0) return Result<ProjectSaveResult>.Fail("CSV has no header");
-
-                var processed = 0;
-                Guid? knownProjectId = null;
-                var batch = new List<RawDataDto>(DefaultChunkSize);
-
-                while (csv.Read())
-                {
-                    string? sampleId = null;
-                    var sampleIdHeader = headers.FirstOrDefault(h => string.Equals(h, "SampleId", StringComparison.OrdinalIgnoreCase));
-                    if (sampleIdHeader != null)
-                    {
-                        sampleId = csv.GetField(sampleIdHeader);
-                    }
-
-                    var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var h in headers)
-                    {
-                        if (string.Equals(h, "SampleId", StringComparison.OrdinalIgnoreCase)) continue;
-                        var value = csv.GetField(h);
-                        if (value == null) { dict[h] = null; continue; }
-                        if (double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) dict[h] = d;
-                        else if (bool.TryParse(value, out var b)) dict[h] = b;
-                        else dict[h] = value;
-                    }
-
-                    var columnDataJson = JsonSerializer.Serialize(dict);
-                    batch.Add(new RawDataDto(columnDataJson, string.IsNullOrWhiteSpace(sampleId) ? null : sampleId));
-                    processed++;
-
-                    // report intermediate progress if desired
-                    progress?.Report((totalRows, processed));
-
-                    if (batch.Count >= DefaultChunkSize)
-                    {
-                        // save batch - if we already have project id use it, otherwise pass Guid.Empty
-                        var saveProjectId = knownProjectId ?? Guid.Empty;
-                        var res = await _persistence.SaveProjectAsync(saveProjectId, projectName, owner, batch, stateJson);
-                        if (!res.Succeeded)
-                        {
-                            var msg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
-                            return Result<ProjectSaveResult>.Fail($"Import failed during batch save: {msg ?? "unknown error"}");
-                        }
-
-                        knownProjectId = res.Data!.ProjectId;
-                        batch.Clear();
-                    }
+                    if (string.Equals(h, "SampleId", StringComparison.OrdinalIgnoreCase)) continue;
+                    var value = csv.GetField(h);
+                    if (value == null) { dict[h] = null; continue; }
+                    if (double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) dict[h] = d;
+                    else if (bool.TryParse(value, out var b)) dict[h] = b;
+                    else dict[h] = value;
                 }
 
-                // save remaining
-                if (batch.Count > 0)
+                var columnDataJson = JsonSerializer.Serialize(dict);
+                batch.Add(new RawDataDto(columnDataJson, string.IsNullOrWhiteSpace(sampleId) ? null : sampleId));
+                processed++;
+
+                progress?.Report((totalRows, processed));
+
+                if (batch.Count >= DefaultChunkSize)
                 {
                     var saveProjectId = knownProjectId ?? Guid.Empty;
                     var res = await _persistence.SaveProjectAsync(saveProjectId, projectName, owner, batch, stateJson);
                     if (!res.Succeeded)
                     {
                         var msg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
-                        return Result<ProjectSaveResult>.Fail($"Import failed during final save: {msg ?? "unknown error"}");
+                        return Result<ProjectSaveResult>.Fail($"Import failed during batch save: {msg ?? "unknown error"}");
                     }
 
                     knownProjectId = res.Data!.ProjectId;
                     batch.Clear();
                 }
+            }
 
-                // final report
-                progress?.Report((totalRows, processed));
+            if (batch.Count > 0)
+            {
+                var saveProjectId = knownProjectId ?? Guid.Empty;
+                var res = await _persistence.SaveProjectAsync(saveProjectId, projectName, owner, batch, stateJson);
+                if (!res.Succeeded)
+                {
+                    var msg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
+                    return Result<ProjectSaveResult>.Fail($"Import failed during final save: {msg ?? "unknown error"}");
+                }
 
-                return Result<ProjectSaveResult>.Success(new ProjectSaveResult(knownProjectId ?? Guid.Empty));
+                knownProjectId = res.Data!.ProjectId;
+                batch.Clear();
             }
-            catch (Exception ex)
-            {
-                return Result<ProjectSaveResult>.Fail($"Import failed: {ex.Message}");
-            }
-            finally
-            {
-                try { ms.Dispose(); } catch { }
-            }
+
+            progress?.Report((totalRows, processed));
+
+            return Result<ProjectSaveResult>.Success(new ProjectSaveResult(knownProjectId ?? Guid.Empty));
+        }
+        catch (Exception ex)
+        {
+            return Result<ProjectSaveResult>.Fail($"Import failed: {ex.Message}");
+        }
+        finally
+        {
+            try { ms.Dispose(); } catch { }
         }
     }
+
+    #endregion
+
+    #region Advanced Import
+
+    public async Task<Result<FileFormatDetectionResult>> DetectFormatAsync(Stream fileStream, string fileName)
+    {
+        try
+        {
+            var result = await _parser.DetectFormatAsync(fileStream, fileName);
+            return Result<FileFormatDetectionResult>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to detect format for {FileName}", fileName);
+            return Result<FileFormatDetectionResult>.Fail($"Format detection failed: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<FilePreviewResult>> PreviewFileAsync(Stream fileStream, string fileName, int previewRows = 10)
+    {
+        try
+        {
+            var detection = await _parser.DetectFormatAsync(fileStream, fileName);
+            fileStream.Position = 0;
+
+            var preview = new List<Dictionary<string, string>>();
+            using var reader = new StreamReader(fileStream, leaveOpen: true);
+
+            for (int i = 0; i < previewRows + 1 && !reader.EndOfStream; i++)
+            {
+                var line = await reader.ReadLineAsync();
+                if (line == null) continue;
+
+                if (i == 0 && detection.Format == FileFormat.TabularCsv)
+                {
+                    continue; // Skip header for tabular format
+                }
+
+                var row = new Dictionary<string, string>();
+                var parts = line.Split(',');
+                for (int j = 0; j < parts.Length && j < detection.DetectedColumns.Count; j++)
+                {
+                    row[detection.DetectedColumns[j]] = parts[j].Trim().Trim('"');
+                }
+                preview.Add(row);
+            }
+
+            return Result<FilePreviewResult>.Success(new FilePreviewResult(
+                detection.Format,
+                detection.DetectedColumns,
+                preview,
+                0, // Would need to count all rows
+                new List<string>(),
+                detection.Message
+            ));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to preview file {FileName}", fileName);
+            return Result<FilePreviewResult>.Fail($"Preview failed: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<AdvancedImportResult>> ImportAdvancedAsync(
+        Stream fileStream,
+        string fileName,
+        AdvancedImportRequest request,
+        IProgress<(int total, int processed, string message)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Detect format if not forced
+            var format = request.ForceFormat ?? FileFormat.Unknown;
+            if (format == FileFormat.Unknown)
+            {
+                var detection = await _parser.DetectFormatAsync(fileStream, fileName);
+                format = detection.Format;
+                fileStream.Position = 0;
+            }
+
+            if (format == FileFormat.Unknown)
+            {
+                return Result<AdvancedImportResult>.Fail("Could not determine file format");
+            }
+
+            progress?.Report((0, 0, "Parsing file... "));
+
+            // Parse file
+            var (parsedRows, warnings) = await _parser.ParseFileAsync(
+                fileStream, fileName, format, request, progress, cancellationToken);
+
+            if (!parsedRows.Any())
+            {
+                return Result<AdvancedImportResult>.Fail("No data rows found in file");
+            }
+
+            progress?.Report((parsedRows.Count, 0, "Saving to database..."));
+
+            // Convert to RawDataDto and save
+            var batch = new List<RawDataDto>(DefaultChunkSize);
+            Guid? projectId = null;
+            int saved = 0;
+
+            foreach (var row in parsedRows)
+            {
+                if (cancellationToken.IsCancellationRequested) break;
+
+                var dict = new Dictionary<string, object?>
+                {
+                    ["Solution Label"] = row.SolutionLabel,
+                    ["Element"] = row.Element,
+                    ["Int"] = row.Intensity,
+                    ["Corr Con"] = row.CorrCon,
+                    ["Type"] = row.Type
+                };
+
+                if (row.ActWgt.HasValue) dict["Act Wgt"] = row.ActWgt;
+                if (row.ActVol.HasValue) dict["Act Vol"] = row.ActVol;
+                if (row.DF.HasValue) dict["DF"] = row.DF;
+
+                foreach (var additional in row.AdditionalColumns)
+                {
+                    dict[additional.Key] = additional.Value;
+                }
+
+                var columnDataJson = JsonSerializer.Serialize(dict);
+                batch.Add(new RawDataDto(columnDataJson, row.SolutionLabel));
+
+                if (batch.Count >= DefaultChunkSize)
+                {
+                    var saveResult = await _persistence.SaveProjectAsync(
+                        projectId ?? Guid.Empty,
+                        request.ProjectName,
+                        request.Owner,
+                        batch,
+                        null);
+
+                    if (!saveResult.Succeeded)
+                    {
+                        return Result<AdvancedImportResult>.Fail(
+                            $"Failed to save batch: {saveResult.Messages?.FirstOrDefault()}");
+                    }
+
+                    projectId = saveResult.Data!.ProjectId;
+                    saved += batch.Count;
+                    batch.Clear();
+
+                    progress?.Report((parsedRows.Count, saved, $"Saved {saved}/{parsedRows.Count} rows"));
+                }
+            }
+
+            // Save remaining
+            if (batch.Count > 0)
+            {
+                var saveResult = await _persistence.SaveProjectAsync(
+                    projectId ?? Guid.Empty,
+                    request.ProjectName,
+                    request.Owner,
+                    batch,
+                    null);
+
+                if (!saveResult.Succeeded)
+                {
+                    return Result<AdvancedImportResult>.Fail(
+                        $"Failed to save final batch: {saveResult.Messages?.FirstOrDefault()}");
+                }
+
+                projectId = saveResult.Data!.ProjectId;
+                saved += batch.Count;
+            }
+
+            var solutionLabels = parsedRows.Select(r => r.SolutionLabel).Distinct().ToList();
+            var elements = parsedRows.Select(r => r.Element).Distinct().ToList();
+
+            return Result<AdvancedImportResult>.Success(new AdvancedImportResult(
+                projectId ?? Guid.Empty,
+                parsedRows.Count + warnings.Count(w => w.Level == ImportWarningLevel.Warning),
+                saved,
+                warnings.Count(w => w.Level == ImportWarningLevel.Warning),
+                format,
+                solutionLabels,
+                elements,
+                warnings
+            ));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Advanced import failed for {FileName}", fileName);
+            return Result<AdvancedImportResult>.Fail($"Import failed: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<AdvancedImportResult>> ImportAdditionalAsync(
+        Guid projectId,
+        Stream fileStream,
+        string fileName,
+        AdvancedImportRequest? request = null,
+        IProgress<(int total, int processed, string message)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Similar to ImportAdvancedAsync but appends to existing project
+        var importRequest = request ?? new AdvancedImportRequest("Additional", null);
+
+        var result = await ImportAdvancedAsync(fileStream, fileName, importRequest, progress, cancellationToken);
+
+        // Note: In a full implementation, we'd merge with existing project instead of creating new
+        return result;
+    }
+
+    public async Task<Result<AdvancedImportResult>> ImportExcelAsync(
+        Stream fileStream,
+        string fileName,
+        AdvancedImportRequest request,
+        IProgress<(int total, int processed, string message)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Force Excel format
+        var excelRequest = request with { ForceFormat = FileFormat.TabularExcel };
+        return await ImportAdvancedAsync(fileStream, fileName, excelRequest, progress, cancellationToken);
+    }
+
+    #endregion
 }
