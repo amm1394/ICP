@@ -24,11 +24,13 @@ public class ProcessingController : ControllerBase
         {
             var res = await _processingService.EnqueueProcessProjectAsync(projectId);
             if (res.Succeeded) return Accepted(Result<object>.Success(new { JobId = res.Data }));
-            return BadRequest(Result<object>.Fail(res.Messages.FirstOrDefault() ?? "Enqueue failed"));
+            var firstMsg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
+            return BadRequest(Result<object>.Fail(firstMsg ?? "Enqueue failed"));
         }
 
         var resSync = await _processingService.ProcessProjectAsync(projectId);
         if (resSync.Succeeded) return Ok(Result<object>.Success(new { ProjectStateId = resSync.Data }));
-        return BadRequest(Result<object>.Fail(resSync.Messages.FirstOrDefault() ?? "Processing failed"));
+        var firstMsgSync = (resSync.Messages ?? Array.Empty<string>()).FirstOrDefault();
+        return BadRequest(Result<object>.Fail(firstMsgSync ?? "Processing failed"));
     }
 }

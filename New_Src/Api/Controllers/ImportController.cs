@@ -42,7 +42,8 @@ public class ImportController : ControllerBase
         using var stream = file.OpenReadStream();
         var res = await _importService.ImportCsvAsync(stream, projectName, owner, stateJson);
         if (res.Succeeded) return Ok(Result<object>.Success(new { ProjectId = res.Data!.ProjectId }));
-        return BadRequest(Result<object>.Fail(res.Messages.FirstOrDefault() ?? "Import failed"));
+        var firstMsg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
+        return BadRequest(Result<object>.Fail(firstMsg ?? "Import failed"));
     }
 
     [HttpGet("import/{jobId:guid}/status")]

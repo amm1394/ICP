@@ -1,115 +1,224 @@
-﻿using Application.Services;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Application.Services;
 using Domain.Entities;
 using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Shared.Wrapper;
-using System.Text.Json;
 
-namespace Infrastructure.Services;
-
-public class ProcessingService : IProcessingService
+namespace Infrastructure.Services
 {
-    private readonly IsatisDbContext _db;
-    private readonly IEnumerable<IRowProcessor> _processors;
-    private readonly ILogger<ProcessingService> _logger;
-
-    public ProcessingService(IsatisDbContext db, IEnumerable<IRowProcessor> processors, ILogger<ProcessingService> logger)
+    /// <summary>
+    /// پیاده‌سازی IProcessingService در لایهٔ Infrastructure.
+    /// </summary>
+    public class ProcessingService : IProcessingService
     {
-        _db = db;
-        _processors = processors;
-        _logger = logger;
-    }
+        private readonly IsatisDbContext _db;
+        private readonly ILogger<ProcessingService> _logger;
 
-    // Note: return type changed to int to match ProjectState primary key type
-    public async Task<Result<int>> ProcessProjectAsync(Guid projectId, bool overwriteLatestState = true)
-    {
-        try
+        public ProcessingService(IsatisDbContext db, ILogger<ProcessingService> logger)
         {
-            var project = await _db.Projects
-                .Include(p => p.RawDataRows)
-                .FirstOrDefaultAsync(p => p.ProjectId == projectId);
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
 
-            if (project == null) return Result<int>.Fail("Project not found");
+        /// <summary>
+        /// صف‌بندی پردازش پروژه.
+        /// فعلاً به صورت فیل‌بک با اجرای هم‌زمان عمل می‌کند و ساختار Data شامل projectStateId یا jobId خواهد بود.
+        /// در آینده می‌توان این متد را تغییر داد تا job در جدول ProjectImportJobs ایجاد کند و jobId برگرداند.
+        /// </summary>
+        public async Task<ProcessingResult> EnqueueProcessProjectAsync(Guid projectId, CancellationToken cancellationToken = default)
+        {
+            // ساده‌سازی: فعلاً همان ProcessProjectAsync را فراخوانی می‌کنیم و projectStateId را در Data برمی‌گردانیم.
+            var result = await ProcessProjectAsync(projectId, overwriteLatestState: true, cancellationToken);
 
-            var accumulators = new List<Dictionary<string, object?>>();
-            foreach (var _ in _processors) accumulators.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase));
+            if (!result.Succeeded)
+                return ProcessingResult.Failure(result.Error ?? "Processing failed", data: result.Data);
 
-            foreach (var row in project.RawDataRows.OrderBy(r => r.DataId))
+            // اگر ProcessProjectAsync موفق بوده، result.Data ممکن است حاوی projectStateId
+            return ProcessingResult.Success(result.Data, Array.Empty<string>());
+        }
+
+        /// <summary>
+        /// پردازش هم‌زمان پروژه: همان منطق سابق با بازگرداندن Data حاوی projectStateId.
+        /// </summary>
+        public async Task<ProcessingResult> ProcessProjectAsync(Guid projectId, bool overwriteLatestState = true, CancellationToken cancellationToken = default)
+        {
+            if (projectId == Guid.Empty)
+                return ProcessingResult.Failure("Invalid projectId");
+
+            try
             {
-                Dictionary<string, object?> parsed;
+                // Check project exists
+                var project = await _db.Projects
+                                       .AsNoTracking()
+                                       .FirstOrDefaultAsync(p => p.ProjectId == projectId, cancellationToken);
+
+                if (project is null)
+                    return ProcessingResult.Failure("Project not found");
+
+                // Load raw rows' ColumnData
+                var rawRows = await _db.Set<RawDataRow>()
+                                       .AsNoTracking()
+                                       .Where(r => r.ProjectId == projectId)
+                                       .Select(r => r.ColumnData)
+                                       .ToListAsync(cancellationToken);
+
+                if (rawRows.Count == 0)
+                {
+                    var emptySnapshot = JsonSerializer.Serialize(new
+                    {
+                        projectId,
+                        processedAt = DateTime.UtcNow,
+                        rowCount = 0,
+                        summary = new { }
+                    });
+
+                    var emptyState = new ProjectState
+                    {
+                        ProjectId = projectId,
+                        Data = emptySnapshot,
+                        Description = "Processed (no rows)",
+                        Timestamp = DateTime.UtcNow
+                    };
+
+                    await _db.Set<ProjectState>().AddAsync(emptyState, cancellationToken);
+                    await _db.SaveChangesAsync(cancellationToken);
+
+                    return ProcessingResult.Success(new { projectStateId = emptyState.StateId }, Array.Empty<string>());
+                }
+
+                // Parse JSON rows and collect numeric values per key
+                var numericBuckets = new Dictionary<string, List<double>>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var cd in rawRows)
+                {
+                    if (string.IsNullOrWhiteSpace(cd))
+                        continue;
+
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(cd);
+                        if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                            continue;
+
+                        foreach (var prop in doc.RootElement.EnumerateObject())
+                        {
+                            if (prop.Value.ValueKind == JsonValueKind.Number && prop.Value.TryGetDouble(out var d))
+                            {
+                                if (!numericBuckets.TryGetValue(prop.Name, out var list))
+                                {
+                                    list = new List<double>();
+                                    numericBuckets[prop.Name] = list;
+                                }
+                                list.Add(d);
+                            }
+                        }
+                    }
+                    catch (JsonException jex)
+                    {
+                        _logger.LogWarning(jex, "Skipping malformed raw row for project {ProjectId}", projectId);
+                        continue;
+                    }
+                }
+
+                // Build summary
+                var summary = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                foreach (var kv in numericBuckets)
+                {
+                    var arr = kv.Value;
+                    var count = arr.Count;
+                    var sum = arr.Sum();
+                    var mean = count > 0 ? sum / count : 0.0;
+                    summary[kv.Key] = new { count, mean };
+                }
+
+                var snapshot = new
+                {
+                    projectId,
+                    processedAt = DateTime.UtcNow,
+                    rowCount = rawRows.Count,
+                    summary
+                };
+
+                var snapshotJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = false });
+
+                // Determine next ProcessedId
+                var nextProcessedId = 1;
                 try
                 {
-                    parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(row.ColumnData) ?? new Dictionary<string, object?>();
+                    var maxProcessedId = await _db.Set<ProcessedData>()
+                                                  .Where(p => p.ProjectId == projectId)
+                                                  .MaxAsync(p => (int?)p.ProcessedId, cancellationToken);
+                    nextProcessedId = (maxProcessedId ?? 0) + 1;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    _logger.LogWarning("Failed to parse ColumnData for Row DataId={DataId} in Project {ProjectId}", row.DataId, projectId);
-                    continue;
+                    _logger.LogDebug(ex, "Could not compute max ProcessedId for project {ProjectId}, defaulting to 1", projectId);
                 }
 
-                int idx = 0;
-                foreach (var proc in _processors)
+                var processed = new ProcessedData
                 {
-                    proc.ProcessRow(parsed, accumulators[idx]);
-                    idx++;
-                }
-            }
+                    ProjectId = projectId,
+                    ProcessedId = nextProcessedId,
+                    AnalysisType = "Summary",
+                    Data = snapshotJson,
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            for (int i = 0; i < _processors.Count(); i++)
-            {
-                _processors.ElementAt(i).Finalize(accumulators[i]);
-            }
-
-            var merged = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0; i < accumulators.Count; i++)
-            {
-                foreach (var kv in accumulators[i])
+                var state = new ProjectState
                 {
-                    var key = kv.Key;
-                    if (merged.ContainsKey(key)) key = $"proc{i}_{key}";
-                    merged[key] = kv.Value;
+                    ProjectId = projectId,
+                    Data = snapshotJson,
+                    Description = "Auto-generated summary",
+                    Timestamp = DateTime.UtcNow
+                };
+
+                // Persist within a transaction
+                await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    await _db.Set<ProcessedData>().AddAsync(processed, cancellationToken);
+                    await _db.Set<ProjectState>().AddAsync(state, cancellationToken);
+
+                    // Update project's LastModifiedAt
+                    var existingProject = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == projectId, cancellationToken);
+                    if (existingProject != null)
+                    {
+                        existingProject.LastModifiedAt = DateTime.UtcNow;
+                        _db.Projects.Update(existingProject);
+                    }
+
+                    await _db.SaveChangesAsync(cancellationToken);
+                    await tx.CommitAsync(cancellationToken);
+
+                    _logger.LogInformation("Processed project {ProjectId}: ProcessedId={ProcessedId}, ProjectStateId={StateId}",
+                        projectId, processed.ProcessedId, state.StateId);
+
+                    // Return Data with projectStateId (controller expects .Data)
+                    return ProcessingResult.Success(new { projectStateId = state.StateId }, Array.Empty<string>());
+                }
+                catch (Exception ex)
+                {
+                    try { await tx.RollbackAsync(cancellationToken); } catch { /* swallow */ }
+                    _logger.LogError(ex, "Processing failed for project {ProjectId}", projectId);
+                    return ProcessingResult.Failure($"Processing failed: {ex.Message}");
                 }
             }
-
-            var stateJson = JsonSerializer.Serialize(merged);
-            var now = DateTime.UtcNow;
-
-            var state = new ProjectState
+            catch (OperationCanceledException)
             {
-                ProjectId = project.ProjectId,
-                Data = stateJson,
-                Timestamp = now,
-                Description = "ProcessedSummary"
-            };
-
-            _db.ProjectStates.Add(state);
-
-            if (overwriteLatestState)
-            {
-                project.LastModifiedAt = now;
-                _db.Projects.Update(project);
+                _logger.LogWarning("Processing cancelled for project {ProjectId}", projectId);
+                return ProcessingResult.Failure("Processing cancelled");
             }
-
-            await _db.SaveChangesAsync();
-
-            // IMPORTANT: ProjectState primary key is assumed to be int (StateId). Return that.
-            return Result<int>.Success(state.StateId);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error while processing project {ProjectId}", projectId);
+                return ProcessingResult.Failure(ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Processing failed for project {ProjectId}", projectId);
-            return Result<int>.Fail($"Processing failed: {ex.Message}");
-        }
-    }
-
-    public Task<Result<Guid>> EnqueueProcessProjectAsync(Guid projectId)
-    {
-        _ = Task.Run(async () =>
-        {
-            await ProcessProjectAsync(projectId);
-        });
-
-        return Task.FromResult(Result<Guid>.Success(Guid.NewGuid()));
     }
 }

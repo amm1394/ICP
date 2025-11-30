@@ -20,23 +20,25 @@ public static class DependencyInjection
         services.AddDbContext<IsatisDbContext>(options => options.UseSqlServer(connectionString));
 
         // Persistence implementations
-        services.AddScoped<IProjectPersistenceService, ProjectPersistenceService>();
+        // Use fully-qualified interface/implementation types to avoid ambiguous-reference errors
+        services.AddScoped<Application.Services.IProjectPersistenceService, Infrastructure.Services.ProjectPersistenceService>();
 
         // Import service (scoped because it uses DbContext)
-        services.AddScoped<IImportService, ImportService>();
+        services.AddScoped<Application.Services.IImportService, Infrastructure.Services.ImportService>();
 
         // Background import queue - singleton hosted service that creates scopes for scoped services
-        services.AddSingleton<BackgroundImportQueueService>();
-        services.AddSingleton<IImportQueueService>(sp => sp.GetRequiredService<BackgroundImportQueueService>());
-        services.AddHostedService(sp => sp.GetRequiredService<BackgroundImportQueueService>());
+        // Register concrete background worker as singleton and expose it as the application-facing IImportQueueService
+        services.AddSingleton<Infrastructure.Services.BackgroundImportQueueService>();
+        services.AddSingleton<Application.Services.IImportQueueService>(sp => sp.GetRequiredService<Infrastructure.Services.BackgroundImportQueueService>());
+        services.AddHostedService(sp => sp.GetRequiredService<Infrastructure.Services.BackgroundImportQueueService>());
 
         // Processing services and processors (scoped)
-        services.AddScoped<IProcessingService, ProcessingService>();
-        services.AddScoped<IRowProcessor, Infrastructure.Services.Processors.ComputeStatisticsProcessor>(); // add more processors as needed
+        services.AddScoped<Application.Services.IProcessingService, Infrastructure.Services.ProcessingService>();
+        services.AddScoped<Application.Services.IRowProcessor, Infrastructure.Services.Processors.ComputeStatisticsProcessor>();
 
         // Cleanup hosted service for old jobs/temp files
-        services.AddSingleton<CleanupHostedService>();
-        services.AddHostedService(sp => sp.GetRequiredService<CleanupHostedService>());
+        services.AddSingleton<Infrastructure.Services.CleanupHostedService>();
+        services.AddHostedService(sp => sp.GetRequiredService<Infrastructure.Services.CleanupHostedService>());
 
         return services;
     }

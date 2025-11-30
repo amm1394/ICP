@@ -35,7 +35,8 @@ public class ProjectsController : ControllerBase
         if (res.Succeeded)
             return Ok(Result<object>.Success(new { ProjectId = res.Data!.ProjectId }));
 
-        return BadRequest(Result<object>.Fail(res.Messages.FirstOrDefault() ?? "Save failed"));
+        var firstMsg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
+        return BadRequest(Result<object>.Fail(firstMsg ?? "Save failed"));
     }
 
     [HttpGet("{projectId:guid}/load")]
@@ -58,7 +59,8 @@ public class ProjectsController : ControllerBase
             }));
         }
 
-        return NotFound(Result<object>.Fail(res.Messages.FirstOrDefault() ?? "Project not found"));
+        var firstMsg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
+        return NotFound(Result<object>.Fail(firstMsg ?? "Project not found"));
     }
 
     // GET /api/projects?page=1&pageSize=20
@@ -69,7 +71,8 @@ public class ProjectsController : ControllerBase
         if (res.Succeeded)
             return Ok(Result<IEnumerable<ProjectListItemDto>>.Success(res.Data!));
 
-        return BadRequest(Result<IEnumerable<ProjectListItemDto>>.Fail(res.Messages.FirstOrDefault() ?? "List failed"));
+        var firstMsg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
+        return BadRequest(Result<IEnumerable<ProjectListItemDto>>.Fail(firstMsg ?? "List failed"));
     }
 
     // DELETE /api/projects/{projectId}
@@ -78,6 +81,8 @@ public class ProjectsController : ControllerBase
     {
         var res = await _projectPersistence.DeleteProjectAsync(projectId);
         if (res.Succeeded) return Ok(Result<object>.Success(new { Deleted = true }));
-        return BadRequest(Result<object>.Fail(res.Messages.FirstOrDefault() ?? "Delete failed"));
+
+        var firstMsg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
+        return BadRequest(Result<object>.Fail(firstMsg ?? "Delete failed"));
     }
 }
