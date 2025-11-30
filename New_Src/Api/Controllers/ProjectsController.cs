@@ -85,7 +85,7 @@ namespace Api.Controllers
             }
         }
 
-        // GET api/projects/import/{jobId}/status
+        // GET api/projects/import/{jobId:guid}/status
         [HttpGet("import/{jobId:guid}/status")]
         public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId)
         {
@@ -112,7 +112,7 @@ namespace Api.Controllers
         public async Task<IActionResult> LoadProject([FromRoute] Guid projectId)
         {
             if (projectId == Guid.Empty)
-                return BadRequest(new ApiResponse<object>(false, null, new[] { "projectId is required" }));
+                return BadRequest(new ApiResponse<object>(false, null, new[] { "projectid is required" }));
 
             try
             {
@@ -204,8 +204,6 @@ namespace Api.Controllers
                 }
             }
 
-            // If nothing worked, attempt a generic "GetProject" property or other common patterns
-            // as a last resort, return null.
             _logger.LogDebug("TryGetProjectAsync: no suitable method found on {Type}", svcType.FullName);
             return null;
         }
