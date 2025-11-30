@@ -75,3 +75,30 @@ public record ManualBlankScaleResult(
     int PassedAfter,
     List<OptimizedSampleDto> OptimizedData
 );
+
+// این recordها رو به انتهای فایل OptimizedSampleDto. cs اضافه کنید
+
+/// <summary>
+/// Result of multi-model optimization
+/// </summary>
+public record MultiModelOptimizationResult(
+    string BestModel,
+    string SelectionReason,
+    ModelResult ModelA,
+    ModelResult ModelB,
+    ModelResult ModelC
+);
+
+/// <summary>
+/// Result of a single optimization model
+/// </summary>
+public record ModelResult(
+    string ModelName,
+    string Description,
+    bool Success,
+    int PassedCount,
+    double TotalDistance,
+    double TotalSSE,
+    Dictionary<string, ElementOptimization> Optimizations,
+    string? ErrorMessage
+);

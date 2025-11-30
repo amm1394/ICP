@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Application.DTOs;
+using ClosedXML.Excel;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,7 @@ namespace Infrastructure.Services;
 
 /// <summary>
 /// Advanced file parser supporting multiple ICP-MS file formats. 
-/// Equivalent to load_file.py logic in Python code.
+/// Equivalent to load_file. py logic in Python code.
 /// </summary>
 public class AdvancedFileParser
 {
@@ -49,7 +50,7 @@ public class AdvancedFileParser
 
             if (isExcel)
             {
-                return await DetectExcelFormatAsync(stream);
+                return DetectExcelFormat(stream);
             }
             else
             {
@@ -75,10 +76,12 @@ public class AdvancedFileParser
         using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
 
         var previewLines = new List<string>();
-        for (int i = 0; i < 20 && !reader.EndOfStream; i++)
+        string? line;
+        int lineCount = 0;
+        while ((line = await reader.ReadLineAsync()) != null && lineCount < 20)
         {
-            var line = await reader.ReadLineAsync();
-            if (line != null) previewLines.Add(line);
+            previewLines.Add(line);
+            lineCount++;
         }
 
         stream.Position = 0;
@@ -126,7 +129,7 @@ public class AdvancedFileParser
             );
         }
 
-        // Check if second row is header (first row might be title)
+        // Check if second row is header
         if (previewLines.Count > 1)
         {
             var secondLine = previewLines[1];
@@ -158,17 +161,98 @@ public class AdvancedFileParser
         );
     }
 
-    private async Task<FileFormatDetectionResult> DetectExcelFormatAsync(Stream stream)
+    private FileFormatDetectionResult DetectExcelFormat(Stream stream)
     {
-        // For Excel, we'd need to use a library like EPPlus or ClosedXML
-        // For now, return a placeholder
-        return new FileFormatDetectionResult(
-            FileFormat.TabularExcel,
-            null,
-            0,
-            new List<string>(),
-            "Excel format detected - will parse on import"
-        );
+        try
+        {
+            stream.Position = 0;
+            using var workbook = new XLWorkbook(stream);
+            var worksheet = workbook.Worksheets.First();
+
+            var previewRows = new List<List<string>>();
+            var usedRange = worksheet.RangeUsed();
+            if (usedRange == null)
+            {
+                return new FileFormatDetectionResult(FileFormat.Unknown, null, null, new List<string>(), "Excel file is empty");
+            }
+
+            // Read first 20 rows for detection
+            int maxRows = Math.Min(20, usedRange.RowCount());
+            int maxCols = usedRange.ColumnCount();
+
+            for (int row = 1; row <= maxRows; row++)
+            {
+                var rowData = new List<string>();
+                for (int col = 1; col <= maxCols; col++)
+                {
+                    var cell = worksheet.Cell(row, col);
+                    rowData.Add(cell.GetString());
+                }
+                previewRows.Add(rowData);
+            }
+
+            // Check for Sample ID-based format
+            bool hasSampleIdMarker = previewRows.Any(r => r.Any(c => SampleIdPattern.IsMatch(c)));
+
+            if (hasSampleIdMarker)
+            {
+                return new FileFormatDetectionResult(
+                    FileFormat.SampleIdBasedExcel,
+                    null,
+                    null,
+                    new List<string> { "Solution Label", "Element", "Int", "Corr Con", "Type" },
+                    "Detected Sample ID-based Excel format"
+                );
+            }
+
+            // Check for tabular format - first row as header
+            var firstRowHeaders = previewRows.FirstOrDefault() ?? new List<string>();
+            bool hasRequiredColumns = firstRowHeaders.Any(h => SolutionLabelColumns.Contains(h, StringComparer.OrdinalIgnoreCase)) &&
+                                       firstRowHeaders.Any(h => ElementColumns.Contains(h, StringComparer.OrdinalIgnoreCase));
+
+            if (hasRequiredColumns)
+            {
+                return new FileFormatDetectionResult(
+                    FileFormat.TabularExcel,
+                    null,
+                    0,
+                    firstRowHeaders,
+                    "Detected tabular Excel format"
+                );
+            }
+
+            // Check second row as header
+            if (previewRows.Count > 1)
+            {
+                var secondRowHeaders = previewRows[1];
+                hasRequiredColumns = secondRowHeaders.Any(h => SolutionLabelColumns.Contains(h, StringComparer.OrdinalIgnoreCase)) &&
+                                      secondRowHeaders.Any(h => ElementColumns.Contains(h, StringComparer.OrdinalIgnoreCase));
+
+                if (hasRequiredColumns)
+                {
+                    return new FileFormatDetectionResult(
+                        FileFormat.TabularExcel,
+                        null,
+                        1,
+                        secondRowHeaders,
+                        "Detected tabular Excel format (header on row 2)"
+                    );
+                }
+            }
+
+            return new FileFormatDetectionResult(
+                FileFormat.TabularExcel,
+                null,
+                0,
+                firstRowHeaders,
+                "Assumed tabular Excel format"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to detect Excel format");
+            return new FileFormatDetectionResult(FileFormat.Unknown, null, null, new List<string>(), $"Excel detection failed: {ex.Message}");
+        }
     }
 
     private char DetectDelimiter(string line)
@@ -209,12 +293,14 @@ public class AdvancedFileParser
                     break;
 
                 case FileFormat.TabularExcel:
+                    (rows, warnings) = ParseTabularExcel(stream, options, progress, cancellationToken);
+                    break;
+
                 case FileFormat.SampleIdBasedExcel:
-                    (rows, warnings) = await ParseExcelAsync(stream, fileName, format, options, progress, cancellationToken);
+                    (rows, warnings) = ParseSampleIdBasedExcel(stream, options, progress, cancellationToken);
                     break;
 
                 default:
-                    // Try auto-detection
                     var detection = await DetectFormatAsync(stream, fileName);
                     if (detection.Format != FileFormat.Unknown)
                     {
@@ -229,6 +315,222 @@ public class AdvancedFileParser
         {
             _logger.LogError(ex, "Failed to parse file {FileName}", fileName);
             warnings.Add(new ImportWarning(null, "", $"Parse error: {ex.Message}", ImportWarningLevel.Error));
+        }
+
+        return (rows, warnings);
+    }
+
+    /// <summary>
+    /// Parse Tabular Excel format using ClosedXML
+    /// </summary>
+    private (List<ParsedFileRow>, List<ImportWarning>) ParseTabularExcel(
+        Stream stream,
+        AdvancedImportRequest? options,
+        IProgress<(int total, int processed, string message)>? progress,
+        CancellationToken cancellationToken)
+    {
+        var rows = new List<ParsedFileRow>();
+        var warnings = new List<ImportWarning>();
+
+        try
+        {
+            stream.Position = 0;
+            using var workbook = new XLWorkbook(stream);
+            var worksheet = workbook.Worksheets.First();
+
+            var usedRange = worksheet.RangeUsed();
+            if (usedRange == null)
+            {
+                warnings.Add(new ImportWarning(null, "", "Excel file is empty", ImportWarningLevel.Error));
+                return (rows, warnings);
+            }
+
+            int totalRows = usedRange.RowCount();
+            int totalCols = usedRange.ColumnCount();
+            int headerRow = (options?.HeaderRow ?? 0) + 1; // ClosedXML is 1-based
+
+            // Read headers
+            var headers = new List<string>();
+            for (int col = 1; col <= totalCols; col++)
+            {
+                headers.Add(worksheet.Cell(headerRow, col).GetString().Trim());
+            }
+
+            // Map columns
+            var columnMap = MapColumns(headers.ToArray(), options?.ColumnMappings);
+
+            int processedRows = 0;
+
+            // Read data rows (skip header and optionally last row)
+            int endRow = options?.SkipLastRow == true ? totalRows - 1 : totalRows;
+
+            for (int row = headerRow + 1; row <= endRow; row++)
+            {
+                if (cancellationToken.IsCancellationRequested) break;
+
+                try
+                {
+                    var solutionLabel = GetExcelColumnValue(worksheet, row, columnMap, "SolutionLabel", headers) ?? "Unknown";
+                    var element = GetExcelColumnValue(worksheet, row, columnMap, "Element", headers) ?? "";
+                    var intensityStr = GetExcelColumnValue(worksheet, row, columnMap, "Intensity", headers);
+                    var corrConStr = GetExcelColumnValue(worksheet, row, columnMap, "CorrCon", headers);
+                    var typeStr = GetExcelColumnValue(worksheet, row, columnMap, "Type", headers);
+
+                    if (string.IsNullOrWhiteSpace(element)) continue;
+
+                    element = NormalizeElementName(element);
+                    var intensity = ParseDecimal(intensityStr);
+                    var corrCon = ParseDecimal(corrConStr);
+                    var type = !string.IsNullOrEmpty(typeStr) ? typeStr : DetectSampleType(solutionLabel, options);
+
+                    var actWgtStr = GetExcelColumnValue(worksheet, row, columnMap, "ActWgt", headers);
+                    var actVolStr = GetExcelColumnValue(worksheet, row, columnMap, "ActVol", headers);
+                    var dfStr = GetExcelColumnValue(worksheet, row, columnMap, "DF", headers);
+
+                    rows.Add(new ParsedFileRow(
+                        solutionLabel,
+                        element,
+                        intensity,
+                        corrCon,
+                        type,
+                        ParseDecimal(actWgtStr),
+                        ParseDecimal(actVolStr),
+                        ParseDecimal(dfStr),
+                        new Dictionary<string, object?>()
+                    ));
+                }
+                catch (Exception ex)
+                {
+                    warnings.Add(new ImportWarning(row, "", $"Failed to parse row: {ex.Message}", ImportWarningLevel.Warning));
+                }
+
+                processedRows++;
+                if (processedRows % 100 == 0)
+                {
+                    progress?.Report((totalRows, processedRows, $"Parsing Excel row {processedRows}/{totalRows}"));
+                }
+            }
+
+            _logger.LogInformation("Parsed {RowCount} rows from Excel file", rows.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse tabular Excel");
+            warnings.Add(new ImportWarning(null, "", $"Excel parse error: {ex.Message}", ImportWarningLevel.Error));
+        }
+
+        return (rows, warnings);
+    }
+
+    /// <summary>
+    /// Parse Sample ID-based Excel format
+    /// </summary>
+    private (List<ParsedFileRow>, List<ImportWarning>) ParseSampleIdBasedExcel(
+        Stream stream,
+        AdvancedImportRequest? options,
+        IProgress<(int total, int processed, string message)>? progress,
+        CancellationToken cancellationToken)
+    {
+        var rows = new List<ParsedFileRow>();
+        var warnings = new List<ImportWarning>();
+
+        try
+        {
+            stream.Position = 0;
+            using var workbook = new XLWorkbook(stream);
+            var worksheet = workbook.Worksheets.First();
+
+            var usedRange = worksheet.RangeUsed();
+            if (usedRange == null)
+            {
+                warnings.Add(new ImportWarning(null, "", "Excel file is empty", ImportWarningLevel.Error));
+                return (rows, warnings);
+            }
+
+            int totalRows = usedRange.RowCount();
+            int totalCols = usedRange.ColumnCount();
+            string? currentSample = null;
+            int processedRows = 0;
+
+            for (int row = 1; row <= totalRows; row++)
+            {
+                if (cancellationToken.IsCancellationRequested) break;
+
+                // Skip last row if option set
+                if (options?.SkipLastRow == true && row == totalRows) continue;
+
+                var firstCellValue = worksheet.Cell(row, 1).GetString();
+
+                // Check for Sample ID marker
+                if (SampleIdPattern.IsMatch(firstCellValue))
+                {
+                    // Try to get sample ID from second column or parse from first
+                    var secondCell = worksheet.Cell(row, 2).GetString();
+                    if (!string.IsNullOrWhiteSpace(secondCell))
+                    {
+                        currentSample = secondCell.Trim();
+                    }
+                    else
+                    {
+                        // Parse from first cell: "Sample ID: XXX"
+                        var match = Regex.Match(firstCellValue, @"Sample\s*ID\s*:\s*(.+)", RegexOptions.IgnoreCase);
+                        currentSample = match.Success ? match.Groups[1].Value.Trim() : "Unknown";
+                    }
+                    continue;
+                }
+
+                // Skip metadata lines
+                if (MethodFilePattern.IsMatch(firstCellValue) || CalibrationPattern.IsMatch(firstCellValue))
+                {
+                    continue;
+                }
+
+                // Parse data row
+                if (currentSample != null && !string.IsNullOrWhiteSpace(firstCellValue))
+                {
+                    try
+                    {
+                        var element = NormalizeElementName(firstCellValue);
+                        var intensityStr = worksheet.Cell(row, 2).GetString();
+                        var corrConStr = totalCols >= 6 ? worksheet.Cell(row, 6).GetString() : null;
+
+                        var intensity = ParseDecimal(intensityStr);
+                        var corrCon = ParseDecimal(corrConStr);
+
+                        if (intensity.HasValue || corrCon.HasValue)
+                        {
+                            var type = DetectSampleType(currentSample, options);
+
+                            rows.Add(new ParsedFileRow(
+                                currentSample,
+                                element,
+                                intensity,
+                                corrCon,
+                                type,
+                                null, null, null,
+                                new Dictionary<string, object?>()
+                            ));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        warnings.Add(new ImportWarning(row, firstCellValue, $"Failed to parse: {ex.Message}", ImportWarningLevel.Warning));
+                    }
+                }
+
+                processedRows++;
+                if (processedRows % 100 == 0)
+                {
+                    progress?.Report((totalRows, processedRows, $"Parsing Excel row {processedRows}/{totalRows}"));
+                }
+            }
+
+            _logger.LogInformation("Parsed {RowCount} rows from Sample ID-based Excel", rows.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Sample ID-based Excel");
+            warnings.Add(new ImportWarning(null, "", $"Excel parse error: {ex.Message}", ImportWarningLevel.Error));
         }
 
         return (rows, warnings);
@@ -250,10 +552,10 @@ public class AdvancedFileParser
         using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
 
         var allLines = new List<string>();
-        while (!reader.EndOfStream)
+        string? line;
+        while ((line = await reader.ReadLineAsync()) != null)
         {
-            var line = await reader.ReadLineAsync();
-            if (line != null) allLines.Add(line);
+            allLines.Add(line);
         }
 
         int totalRows = allLines.Count;
@@ -264,30 +566,24 @@ public class AdvancedFileParser
         {
             if (cancellationToken.IsCancellationRequested) break;
 
-            var line = allLines[i];
+            line = allLines[i];
 
-            // Skip empty lines
             if (string.IsNullOrWhiteSpace(line)) continue;
-
-            // Skip last row if option set
             if (options?.SkipLastRow == true && i == allLines.Count - 1) continue;
 
             var parts = ParseCsvLine(line);
 
-            // Check for Sample ID marker
             if (parts.Length > 0 && SampleIdPattern.IsMatch(parts[0]))
             {
                 currentSample = parts.Length > 1 ? parts[1].Trim() : "Unknown";
                 continue;
             }
 
-            // Skip metadata lines
             if (parts.Length > 0 && (MethodFilePattern.IsMatch(parts[0]) || CalibrationPattern.IsMatch(parts[0])))
             {
                 continue;
             }
 
-            // Parse data row
             if (currentSample != null && parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
             {
                 try
@@ -353,7 +649,6 @@ public class AdvancedFileParser
         using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
         using var csv = new CsvReader(reader, config);
 
-        // Skip to header row if specified
         int headerRow = options?.HeaderRow ?? 0;
         for (int i = 0; i < headerRow && csv.Read(); i++) { }
 
@@ -365,12 +660,10 @@ public class AdvancedFileParser
 
         csv.ReadHeader();
         var headers = csv.HeaderRecord ?? Array.Empty<string>();
-
-        // Find column indices
         var columnMap = MapColumns(headers, options?.ColumnMappings);
 
         int rowNumber = headerRow + 1;
-        int totalEstimate = 1000; // Will update if we know total
+        int totalEstimate = 1000;
         int processedRows = 0;
 
         while (csv.Read())
@@ -379,7 +672,6 @@ public class AdvancedFileParser
 
             rowNumber++;
 
-            // Skip last row if option set
             if (options?.SkipLastRow == true && csv.Parser.RawRow == csv.Parser.Count - 1)
                 continue;
 
@@ -398,8 +690,6 @@ public class AdvancedFileParser
                 var corrCon = ParseDecimal(corrConStr);
                 var type = !string.IsNullOrEmpty(typeStr) ? typeStr : DetectSampleType(solutionLabel, options);
 
-                // Parse additional columns
-                var additional = new Dictionary<string, object?>();
                 var actWgtStr = GetColumnValue(csv, columnMap, "ActWgt");
                 var actVolStr = GetColumnValue(csv, columnMap, "ActVol");
                 var dfStr = GetColumnValue(csv, columnMap, "DF");
@@ -413,7 +703,7 @@ public class AdvancedFileParser
                     ParseDecimal(actWgtStr),
                     ParseDecimal(actVolStr),
                     ParseDecimal(dfStr),
-                    additional
+                    new Dictionary<string, object?>()
                 ));
             }
             catch (Exception ex)
@@ -429,27 +719,6 @@ public class AdvancedFileParser
         }
 
         return (rows, warnings);
-    }
-
-    /// <summary>
-    /// Parse Excel file
-    /// </summary>
-    private async Task<(List<ParsedFileRow>, List<ImportWarning>)> ParseExcelAsync(
-        Stream stream,
-        string fileName,
-        FileFormat format,
-        AdvancedImportRequest? options,
-        IProgress<(int total, int processed, string message)>? progress,
-        CancellationToken cancellationToken)
-    {
-        // For Excel parsing, we'd need EPPlus or ClosedXML
-        // This is a placeholder - actual implementation would use those libraries
-        var warnings = new List<ImportWarning>
-        {
-            new ImportWarning(null, "", "Excel parsing requires additional setup.  Please export to CSV.", ImportWarningLevel. Warning)
-        };
-
-        return (new List<ParsedFileRow>(), warnings);
     }
 
     #endregion
@@ -483,9 +752,6 @@ public class AdvancedFileParser
         return result.ToArray();
     }
 
-    /// <summary>
-    /// Normalize element name: "Ce140" -> "Ce 140"
-    /// </summary>
     private string NormalizeElementName(string element)
     {
         if (string.IsNullOrWhiteSpace(element)) return element;
@@ -500,12 +766,9 @@ public class AdvancedFileParser
         return element;
     }
 
-    /// <summary>
-    /// Detect sample type from label
-    /// </summary>
     private string DetectSampleType(string solutionLabel, AdvancedImportRequest? options)
     {
-        if (!options?.AutoDetectType ?? false)
+        if (!(options?.AutoDetectType ?? true))
             return options?.DefaultType ?? "Samp";
 
         var upper = solutionLabel.ToUpperInvariant();
@@ -534,9 +797,6 @@ public class AdvancedFileParser
         return null;
     }
 
-    /// <summary>
-    /// Map file columns to expected columns
-    /// </summary>
     private Dictionary<string, int> MapColumns(string[] headers, Dictionary<string, string>? customMappings)
     {
         var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -545,7 +805,6 @@ public class AdvancedFileParser
         {
             var header = headers[i].Trim();
 
-            // Check custom mappings first
             if (customMappings != null)
             {
                 foreach (var mapping in customMappings)
@@ -557,7 +816,6 @@ public class AdvancedFileParser
                 }
             }
 
-            // Auto-map known columns
             if (SolutionLabelColumns.Contains(header, StringComparer.OrdinalIgnoreCase))
                 map["SolutionLabel"] = i;
             else if (ElementColumns.Contains(header, StringComparer.OrdinalIgnoreCase))
@@ -588,6 +846,22 @@ public class AdvancedFileParser
             try
             {
                 return csv.GetField(index);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private string? GetExcelColumnValue(IXLWorksheet worksheet, int row, Dictionary<string, int> columnMap, string columnName, List<string> headers)
+    {
+        if (columnMap.TryGetValue(columnName, out var index))
+        {
+            try
+            {
+                return worksheet.Cell(row, index + 1).GetString(); // ClosedXML is 1-based
             }
             catch
             {

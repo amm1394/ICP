@@ -499,9 +499,13 @@ public class OptimizationService : IOptimizationService
         return result;
     }
 
+
     private record RmSampleData(string SolutionLabel, Dictionary<string, decimal?> Values);
     private record MatchedSample(string SolutionLabel, string CrmId, Dictionary<string, decimal?> SampleValues, Dictionary<string, decimal?> CrmValues);
     private record ElementStats(int Passed, decimal MeanDiff);
 
+
     #endregion
+
+
 }
