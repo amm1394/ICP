@@ -12,9 +12,9 @@ using Shared.Wrapper;
 namespace Infrastructure.Services;
 
 /// <summary>
-/// Implementation of IPivotService. 
+/// Implementation of IPivotService.  
 /// Handles pivot table creation, filtering, and duplicate detection.
-/// Equivalent to pivot_tab.py and result. py in Python code. 
+/// Equivalent to pivot_tab.py and result. py in Python code.  
 /// </summary>
 public class PivotService : IPivotService
 {
@@ -30,11 +30,12 @@ public class PivotService : IPivotService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    #region Basic Pivot (existing)
+
     public async Task<Result<PivotResultDto>> GetPivotTableAsync(PivotRequest request)
     {
         try
         {
-            // 1. Load project with raw data
             var project = await _db.Projects
                 .AsNoTracking()
                 .Include(p => p.RawDataRows)
@@ -46,7 +47,6 @@ public class PivotService : IPivotService
             if (!project.RawDataRows.Any())
                 return Result<PivotResultDto>.Fail("Project has no data");
 
-            // 2. Parse raw data and build pivot structure
             var pivotData = new List<(string SolutionLabel, Dictionary<string, decimal?> Values, int Index)>();
             var allElements = new HashSet<string>();
 
@@ -72,7 +72,6 @@ public class PivotService : IPivotService
 
                     decimal? value = ParseDecimalValue(kvp.Value);
 
-                    // Apply oxide conversion if requested
                     if (request.UseOxide && value.HasValue)
                     {
                         var elementSymbol = ExtractElementSymbol(element);
@@ -88,17 +87,14 @@ public class PivotService : IPivotService
                 pivotData.Add((solutionLabel, values, index++));
             }
 
-            // 3. Apply filters
             var filteredData = pivotData.AsEnumerable();
 
-            // Filter by solution labels
             if (request.SelectedSolutionLabels?.Any() == true)
             {
                 filteredData = filteredData.Where(d =>
                     request.SelectedSolutionLabels.Contains(d.SolutionLabel));
             }
 
-            // Filter by search text
             if (!string.IsNullOrWhiteSpace(request.SearchText))
             {
                 var search = request.SearchText.ToLower();
@@ -107,7 +103,6 @@ public class PivotService : IPivotService
                     d.Values.Any(v => v.Value?.ToString().Contains(search) == true));
             }
 
-            // Apply number filters
             if (request.NumberFilters?.Any() == true)
             {
                 foreach (var filter in request.NumberFilters)
@@ -118,7 +113,7 @@ public class PivotService : IPivotService
                     filteredData = filteredData.Where(d =>
                     {
                         if (!d.Values.TryGetValue(column, out var val) || !val.HasValue)
-                            return true; // Keep nulls
+                            return true;
 
                         if (numberFilter.Min.HasValue && val.Value < numberFilter.Min.Value)
                             return false;
@@ -133,13 +128,11 @@ public class PivotService : IPivotService
             var filteredList = filteredData.ToList();
             var totalCount = filteredList.Count;
 
-            // 4.  Pagination
             var pagedData = filteredList
                 .Skip((request.Page - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
-            // 5. Filter columns if specific elements requested
             var columns = allElements.OrderBy(e => e).ToList();
             if (request.SelectedElements?.Any() == true)
             {
@@ -147,17 +140,14 @@ public class PivotService : IPivotService
                     request.SelectedElements.Any(e => c.StartsWith(e))).ToList();
             }
 
-            // 6. Build result rows
             var rows = pagedData.Select(d => new PivotRowDto(
                 d.SolutionLabel,
                 RoundValues(d.Values, request.DecimalPlaces),
                 d.Index
             )).ToList();
 
-            // 7. Calculate column stats
             var columnStats = CalculateColumnStats(filteredList, columns);
 
-            // 8. Build metadata
             var metadata = new PivotMetadataDto(
                 pivotData.Select(d => d.SolutionLabel).Distinct().OrderBy(s => s).ToList(),
                 allElements.OrderBy(e => e).ToList(),
@@ -179,6 +169,263 @@ public class PivotService : IPivotService
             return Result<PivotResultDto>.Fail($"Failed to get pivot table: {ex.Message}");
         }
     }
+
+    #endregion
+
+    #region Advanced Pivot with GCD/Repeats
+
+    public async Task<Result<AdvancedPivotResultDto>> GetAdvancedPivotTableAsync(AdvancedPivotRequest request)
+    {
+        try
+        {
+            var project = await _db.Projects
+                .AsNoTracking()
+                .Include(p => p.RawDataRows)
+                .FirstOrDefaultAsync(p => p.ProjectId == request.ProjectId);
+
+            if (project == null)
+                return Result<AdvancedPivotResultDto>.Fail("Project not found");
+
+            if (!project.RawDataRows.Any())
+                return Result<AdvancedPivotResultDto>.Fail("Project has no data");
+
+            // 1. Parse all raw data into structured format
+            var rawData = new List<ParsedSampleRow>();
+            int index = 0;
+
+            foreach (var rawRow in project.RawDataRows.OrderBy(r => r.DataId))
+            {
+                var rowData = ParseRowData(rawRow);
+                if (rowData == null) continue;
+
+                var solutionLabel = GetSolutionLabel(rawRow, rowData);
+                if (string.IsNullOrWhiteSpace(solutionLabel)) continue;
+
+                // Get Type - only process "Samp" or "Sample"
+                var type = GetStringValue(rowData, "Type");
+                if (!string.IsNullOrEmpty(type) && type != "Samp" && type != "Sample")
+                    continue;
+
+                // Get Element name
+                var element = GetStringValue(rowData, "Element");
+                if (string.IsNullOrEmpty(element)) continue;
+
+                // Get value (Int or Corr Con)
+                var valueColumn = request.UseInt ? "Int" : "Corr Con";
+                var value = GetDecimalValue(rowData, valueColumn);
+
+                rawData.Add(new ParsedSampleRow(
+                    solutionLabel,
+                    element,
+                    value,
+                    index++,
+                    rowData
+                ));
+            }
+
+            if (!rawData.Any())
+                return Result<AdvancedPivotResultDto>.Fail("No sample data found");
+
+            // 2. Calculate set sizes using GCD algorithm (from Python)
+            var setSizes = CalculateSetSizes(rawData);
+
+            // 3. Detect repeats
+            var (hasRepeats, repeatedElements) = DetectRepeatedElements(rawData, setSizes);
+
+            // 4. Build pivot table
+            var allElements = new HashSet<string>();
+            var pivotRows = new List<AdvancedPivotRowDto>();
+
+            // Group by solution label
+            var groupedBySolution = rawData.GroupBy(r => r.SolutionLabel);
+
+            foreach (var solutionGroup in groupedBySolution)
+            {
+                var solutionLabel = solutionGroup.Key;
+                var setSize = setSizes.GetValueOrDefault(solutionLabel, 1);
+                var rows = solutionGroup.ToList();
+
+                // Divide into sets
+                var sets = DivideIntoSets(rows, setSize);
+
+                for (int setIndex = 0; setIndex < sets.Count; setIndex++)
+                {
+                    var setRows = sets[setIndex];
+                    var values = new Dictionary<string, decimal?>();
+
+                    // Group by element within set
+                    var elementGroups = setRows.GroupBy(r => r.Element);
+
+                    foreach (var elementGroup in elementGroups)
+                    {
+                        var elementName = elementGroup.Key;
+                        var elementValues = elementGroup.Where(e => e.Value.HasValue).Select(e => e.Value!.Value).ToList();
+
+                        if (hasRepeats && elementGroup.Count() > 1 && !request.MergeRepeats)
+                        {
+                            // Create separate columns for repeats: Element_1, Element_2, ...
+                            int repeatIndex = 1;
+                            foreach (var row in elementGroup)
+                            {
+                                var columnName = $"{elementName}_{repeatIndex}";
+                                allElements.Add(columnName);
+
+                                decimal? finalValue = row.Value;
+                                if (request.UseOxide && finalValue.HasValue)
+                                {
+                                    finalValue = ApplyOxideConversion(elementName, finalValue.Value);
+                                }
+                                values[columnName] = finalValue;
+                                repeatIndex++;
+                            }
+                        }
+                        else
+                        {
+                            // Single value or merge repeats
+                            allElements.Add(elementName);
+                            decimal? aggregatedValue = AggregateValues(elementValues, request.Aggregation);
+
+                            if (request.UseOxide && aggregatedValue.HasValue)
+                            {
+                                aggregatedValue = ApplyOxideConversion(elementName, aggregatedValue.Value);
+                            }
+                            values[elementName] = aggregatedValue;
+                        }
+                    }
+
+                    var firstRowIndex = setRows.FirstOrDefault()?.OriginalIndex ?? 0;
+
+                    pivotRows.Add(new AdvancedPivotRowDto(
+                        solutionLabel,
+                        RoundValues(values, request.DecimalPlaces),
+                        firstRowIndex,
+                        setIndex,
+                        sets.Count
+                    ));
+                }
+            }
+
+            // 5. Apply filters
+            var filteredRows = pivotRows.AsEnumerable();
+
+            if (request.SelectedSolutionLabels?.Any() == true)
+            {
+                filteredRows = filteredRows.Where(r =>
+                    request.SelectedSolutionLabels.Contains(r.SolutionLabel));
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.SearchText))
+            {
+                var search = request.SearchText.ToLower();
+                filteredRows = filteredRows.Where(r =>
+                    r.SolutionLabel.ToLower().Contains(search));
+            }
+
+            var filteredList = filteredRows.OrderBy(r => r.OriginalIndex).ToList();
+            var totalCount = filteredList.Count;
+
+            // 6.  Pagination
+            var pagedRows = filteredList
+                .Skip((request.Page - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .ToList();
+
+            // 7. Filter columns
+            var columns = allElements.OrderBy(e => e).ToList();
+            if (request.SelectedElements?.Any() == true)
+            {
+                columns = columns.Where(c =>
+                    request.SelectedElements.Any(e => c.StartsWith(e))).ToList();
+            }
+
+            // 8.  Calculate stats
+            var statsData = filteredList.Select(r => (r.SolutionLabel, r.Values, r.OriginalIndex)).ToList();
+            var columnStats = CalculateColumnStats(statsData, columns);
+
+            // 9. Build metadata
+            var metadata = new AdvancedPivotMetadataDto(
+                pivotRows.Select(r => r.SolutionLabel).Distinct().OrderBy(s => s).ToList(),
+                allElements.OrderBy(e => e).ToList(),
+                columnStats,
+                hasRepeats,
+                setSizes,
+                repeatedElements
+            );
+
+            return Result<AdvancedPivotResultDto>.Success(new AdvancedPivotResultDto(
+                columns,
+                pagedRows,
+                totalCount,
+                request.Page,
+                request.PageSize,
+                metadata
+            ));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get advanced pivot table for project {ProjectId}", request.ProjectId);
+            return Result<AdvancedPivotResultDto>.Fail($"Failed to get advanced pivot table: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<RepeatAnalysisDto>> AnalyzeRepeatsAsync(Guid projectId)
+    {
+        try
+        {
+            var project = await _db.Projects
+                .AsNoTracking()
+                .Include(p => p.RawDataRows)
+                .FirstOrDefaultAsync(p => p.ProjectId == projectId);
+
+            if (project == null)
+                return Result<RepeatAnalysisDto>.Fail("Project not found");
+
+            var rawData = new List<ParsedSampleRow>();
+            int index = 0;
+
+            foreach (var rawRow in project.RawDataRows.OrderBy(r => r.DataId))
+            {
+                var rowData = ParseRowData(rawRow);
+                if (rowData == null) continue;
+
+                var solutionLabel = GetSolutionLabel(rawRow, rowData);
+                if (string.IsNullOrWhiteSpace(solutionLabel)) continue;
+
+                var type = GetStringValue(rowData, "Type");
+                if (!string.IsNullOrEmpty(type) && type != "Samp" && type != "Sample")
+                    continue;
+
+                var element = GetStringValue(rowData, "Element");
+                if (string.IsNullOrEmpty(element)) continue;
+
+                rawData.Add(new ParsedSampleRow(solutionLabel, element, null, index++, null));
+            }
+
+            var setSizes = CalculateSetSizes(rawData);
+            var (hasRepeats, repeatedElements) = DetectRepeatedElements(rawData, setSizes);
+
+            var elementCounts = rawData
+                .GroupBy(r => r.Element)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            return Result<RepeatAnalysisDto>.Success(new RepeatAnalysisDto(
+                hasRepeats,
+                rawData.Count,
+                setSizes,
+                repeatedElements,
+                elementCounts
+            ));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to analyze repeats for project {ProjectId}", projectId);
+            return Result<RepeatAnalysisDto>.Fail($"Failed to analyze repeats: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region Other Methods (existing)
 
     public async Task<Result<List<string>>> GetSolutionLabelsAsync(Guid projectId)
     {
@@ -264,28 +511,23 @@ public class PivotService : IPivotService
             var patterns = request.DuplicatePatterns ?? DefaultDuplicatePatterns.ToList();
             var duplicates = new List<DuplicateResultDto>();
 
-            // Build pattern regex
             var patternRegex = new Regex($@"\b({string.Join("|", patterns.Select(Regex.Escape))})\b", RegexOptions.IgnoreCase);
 
-            // Find duplicate rows
             var duplicateRows = pivotData.Rows
                 .Where(r => patternRegex.IsMatch(r.SolutionLabel))
                 .ToList();
 
             foreach (var dupRow in duplicateRows)
             {
-                // Extract base number from duplicate label (e.g., "123-TEK" -> "123")
                 var baseNumber = ExtractBaseNumber(dupRow.SolutionLabel);
                 if (string.IsNullOrEmpty(baseNumber)) continue;
 
-                // Find main row
                 var mainRow = pivotData.Rows
                     .FirstOrDefault(r => !patternRegex.IsMatch(r.SolutionLabel) &&
                                          r.SolutionLabel.Contains(baseNumber));
 
                 if (mainRow == null) continue;
 
-                // Calculate differences
                 var differences = new List<ElementDiffDto>();
                 bool hasOutOfRange = false;
 
@@ -351,7 +593,6 @@ public class PivotService : IPivotService
     {
         try
         {
-            // Get all data (no pagination for export)
             var exportRequest = request with { Page = 1, PageSize = int.MaxValue };
             var pivotResult = await GetPivotTableAsync(exportRequest);
 
@@ -361,10 +602,8 @@ public class PivotService : IPivotService
             var pivot = pivotResult.Data!;
             var sb = new StringBuilder();
 
-            // Header
             sb.AppendLine("Solution Label," + string.Join(",", pivot.Columns));
 
-            // Rows
             foreach (var row in pivot.Rows)
             {
                 var values = pivot.Columns.Select(c =>
@@ -383,7 +622,186 @@ public class PivotService : IPivotService
         }
     }
 
+    #endregion
+
     #region Private Helpers
+
+    private record ParsedSampleRow(
+        string SolutionLabel,
+        string Element,
+        decimal? Value,
+        int OriginalIndex,
+        Dictionary<string, object?>? RawData
+    );
+
+    /// <summary>
+    /// Calculate set sizes using GCD algorithm (from Python pivot_creator.py)
+    /// </summary>
+    private Dictionary<string, int> CalculateSetSizes(List<ParsedSampleRow> rawData)
+    {
+        var setSizes = new Dictionary<string, int>();
+
+        var groupedBySolution = rawData.GroupBy(r => r.SolutionLabel);
+
+        foreach (var group in groupedBySolution)
+        {
+            var solutionLabel = group.Key;
+            var rows = group.ToList();
+
+            // Count occurrences of each element
+            var elementCounts = rows
+                .GroupBy(r => r.Element)
+                .Select(g => g.Count())
+                .ToArray();
+
+            if (elementCounts.Length > 0)
+            {
+                // Calculate GCD of all element counts
+                int gcd = elementCounts.Aggregate(GCD);
+                int totalRows = rows.Count;
+
+                if (gcd > 0 && totalRows % gcd == 0)
+                {
+                    setSizes[solutionLabel] = totalRows / gcd;
+                }
+                else
+                {
+                    setSizes[solutionLabel] = totalRows;
+                }
+            }
+            else
+            {
+                setSizes[solutionLabel] = 1;
+            }
+        }
+
+        return setSizes;
+    }
+
+    /// <summary>
+    /// Detect if there are repeated elements within sets
+    /// </summary>
+    private (bool HasRepeats, Dictionary<string, List<string>> RepeatedElements) DetectRepeatedElements(
+        List<ParsedSampleRow> rawData,
+        Dictionary<string, int> setSizes)
+    {
+        var repeatedElements = new Dictionary<string, List<string>>();
+        bool hasRepeats = false;
+
+        var groupedBySolution = rawData.GroupBy(r => r.SolutionLabel);
+
+        foreach (var solutionGroup in groupedBySolution)
+        {
+            var solutionLabel = solutionGroup.Key;
+            var setSize = setSizes.GetValueOrDefault(solutionLabel, 1);
+            var rows = solutionGroup.ToList();
+
+            // Divide into sets
+            var sets = DivideIntoSets(rows, setSize);
+
+            var repeatedInSolution = new List<string>();
+
+            foreach (var set in sets)
+            {
+                var elementCounts = set
+                    .GroupBy(r => r.Element)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key);
+
+                foreach (var element in elementCounts)
+                {
+                    if (!repeatedInSolution.Contains(element))
+                    {
+                        repeatedInSolution.Add(element);
+                        hasRepeats = true;
+                    }
+                }
+            }
+
+            if (repeatedInSolution.Any())
+            {
+                repeatedElements[solutionLabel] = repeatedInSolution;
+            }
+        }
+
+        return (hasRepeats, repeatedElements);
+    }
+
+    /// <summary>
+    /// Divide rows into sets based on set size
+    /// </summary>
+    private List<List<ParsedSampleRow>> DivideIntoSets(List<ParsedSampleRow> rows, int setSize)
+    {
+        var sets = new List<List<ParsedSampleRow>>();
+
+        if (setSize <= 0 || rows.Count == 0)
+        {
+            sets.Add(rows);
+            return sets;
+        }
+
+        // Calculate number of elements per set
+        var distinctElements = rows.Select(r => r.Element).Distinct().Count();
+        int rowsPerSet = distinctElements > 0 ? distinctElements : rows.Count;
+
+        for (int i = 0; i < rows.Count; i += rowsPerSet)
+        {
+            var set = rows.Skip(i).Take(rowsPerSet).ToList();
+            if (set.Any())
+            {
+                sets.Add(set);
+            }
+        }
+
+        return sets;
+    }
+
+    /// <summary>
+    /// Greatest Common Divisor
+    /// </summary>
+    private static int GCD(int a, int b)
+    {
+        while (b != 0)
+        {
+            int temp = b;
+            b = a % b;
+            a = temp;
+        }
+        return a;
+    }
+
+    /// <summary>
+    /// Aggregate values based on aggregation function
+    /// </summary>
+    private decimal? AggregateValues(List<decimal> values, PivotAggregation aggregation)
+    {
+        if (!values.Any()) return null;
+
+        return aggregation switch
+        {
+            PivotAggregation.First => values.First(),
+            PivotAggregation.Last => values.Last(),
+            PivotAggregation.Mean => (decimal)values.Average(v => (double)v),
+            PivotAggregation.Sum => values.Sum(),
+            PivotAggregation.Min => values.Min(),
+            PivotAggregation.Max => values.Max(),
+            PivotAggregation.Count => values.Count,
+            _ => values.First()
+        };
+    }
+
+    /// <summary>
+    /// Apply oxide conversion factor
+    /// </summary>
+    private decimal ApplyOxideConversion(string elementName, decimal value)
+    {
+        var elementSymbol = ExtractElementSymbol(elementName);
+        if (OxideFactors.Factors.TryGetValue(elementSymbol, out var oxide))
+        {
+            return value * oxide.Factor;
+        }
+        return value;
+    }
 
     private Dictionary<string, object?>? ParseRowData(RawDataRow rawRow)
     {
@@ -414,6 +832,28 @@ public class PivotService : IPivotService
         return null;
     }
 
+    private string? GetStringValue(Dictionary<string, object?> rowData, string key)
+    {
+        if (rowData.TryGetValue(key, out var value) && value != null)
+        {
+            if (value is JsonElement je)
+            {
+                return je.ValueKind == JsonValueKind.String ? je.GetString() : je.ToString();
+            }
+            return value.ToString();
+        }
+        return null;
+    }
+
+    private decimal? GetDecimalValue(Dictionary<string, object?> rowData, string key)
+    {
+        if (rowData.TryGetValue(key, out var value))
+        {
+            return ParseDecimalValue(value);
+        }
+        return null;
+    }
+
     private bool IsMetadataColumn(string columnName)
     {
         var metadataColumns = new[] {
@@ -428,7 +868,6 @@ public class PivotService : IPivotService
         if (string.IsNullOrWhiteSpace(columnName))
             return null;
 
-        // Remove common suffixes like _1, _2, etc.
         var cleaned = Regex.Replace(columnName, @"_\d+$", "");
         return cleaned;
     }
@@ -497,7 +936,6 @@ public class PivotService : IPivotService
             var mean = values.Average();
             var count = values.Count;
 
-            // Calculate standard deviation
             decimal? stdDev = null;
             if (count > 1)
             {

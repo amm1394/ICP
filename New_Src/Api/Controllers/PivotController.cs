@@ -18,7 +18,7 @@ public class PivotController : ControllerBase
     }
 
     /// <summary>
-    /// Get pivot table for a project
+    /// Get basic pivot table for a project
     /// POST /api/pivot
     /// </summary>
     [HttpPost]
@@ -28,6 +28,37 @@ public class PivotController : ControllerBase
             return BadRequest(new { succeeded = false, messages = new[] { "ProjectId is required" } });
 
         var result = await _pivotService.GetPivotTableAsync(request);
+        if (!result.Succeeded)
+            return BadRequest(new { succeeded = false, messages = result.Messages });
+
+        return Ok(new { succeeded = true, data = result.Data });
+    }
+
+    /// <summary>
+    /// Get advanced pivot table with GCD/Repeat support
+    /// POST /api/pivot/advanced
+    /// </summary>
+    [HttpPost("advanced")]
+    public async Task<ActionResult> GetAdvancedPivotTable([FromBody] AdvancedPivotRequest request)
+    {
+        if (request.ProjectId == Guid.Empty)
+            return BadRequest(new { succeeded = false, messages = new[] { "ProjectId is required" } });
+
+        var result = await _pivotService.GetAdvancedPivotTableAsync(request);
+        if (!result.Succeeded)
+            return BadRequest(new { succeeded = false, messages = result.Messages });
+
+        return Ok(new { succeeded = true, data = result.Data });
+    }
+
+    /// <summary>
+    /// Analyze repeat patterns in project data
+    /// GET /api/pivot/{projectId}/analyze-repeats
+    /// </summary>
+    [HttpGet("{projectId:guid}/analyze-repeats")]
+    public async Task<ActionResult> AnalyzeRepeats(Guid projectId)
+    {
+        var result = await _pivotService.AnalyzeRepeatsAsync(projectId);
         if (!result.Succeeded)
             return BadRequest(new { succeeded = false, messages = result.Messages });
 
