@@ -13,7 +13,7 @@ namespace Infrastructure.Services;
 /// <summary>
 /// Implementation of ICrmService. 
 /// Handles CRM data management and difference calculations.
-/// Equivalent to CRM.py and crm_manager.py in Python code. 
+/// Equivalent to CRM. py and crm_manager.py in Python code.
 /// </summary>
 public class CrmService : ICrmService
 {
@@ -446,7 +446,7 @@ public class CrmService : ICrmService
         foreach (var pattern in patterns)
         {
             // Pattern: (? i)(? :(? :^|(? <=\s))(?:CRM|OREAS)?\s*{pattern}(?:[a-zA-Z0-9]{0,2})?\b)
-            var regex = new Regex($@"(?i)(? :(?:^|(?<=\s))(?:CRM|OREAS)?\s*({pattern}(? :[a-zA-Z0-9]{{0,2}})?)\b)", RegexOptions.IgnoreCase);
+            var regex = new Regex($@"(?i)(? :(?:^|(?<=\s))(?:CRM|OREAS)?\s*({pattern}(?:[a-zA-Z0-9]{{0,2}})?)\b)", RegexOptions.IgnoreCase);
             var match = regex.Match(label);
             if (match.Success)
             {
@@ -459,7 +459,7 @@ public class CrmService : ICrmService
 
     /// <summary>
     /// Extract element symbol from column name. 
-    /// E.g., "Fe 238.204" -> "Fe", "Cu_1" -> "Cu"
+    /// E.g., "Fe 238. 204" -> "Fe", "Cu_1" -> "Cu"
     /// </summary>
     private static string? ExtractElementSymbol(string columnName)
     {
