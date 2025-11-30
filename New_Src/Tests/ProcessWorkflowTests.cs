@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -32,9 +33,13 @@ namespace Api.Tests.Integration
             // Enqueue process
             var enqueueResp = await client.PostAsync($"/api/projects/{projectId}/process?background=true", null);
             enqueueResp.EnsureSuccessStatusCode();
-            var enqueueBody = await enqueueResp.Content.ReadFromJsonAsync<dynamic>();
+            var enqueueBody = await enqueueResp.Content.ReadFromJsonAsync<JsonElement>();
             // Expect { data: { jobId: "..." }, succeeded: true, messages: [] }
-            string jobId = enqueueBody?.data?.jobId;
+            string? jobId = null;
+            if (enqueueBody.TryGetProperty("data", out var data) && data.TryGetProperty("jobId", out var jobIdElement))
+            {
+                jobId = jobIdElement.GetString();
+            }
             Assert.False(string.IsNullOrWhiteSpace(jobId), "jobId should be returned");
 
             // Poll status with timeout
@@ -49,8 +54,12 @@ namespace Api.Tests.Integration
                     continue;
                 }
 
-                var statusBody = await statusResp.Content.ReadFromJsonAsync<dynamic>();
-                var state = (string)statusBody?.data?.state;
+                var statusBody = await statusResp.Content.ReadFromJsonAsync<JsonElement>();
+                string? state = null;
+                if (statusBody.TryGetProperty("data", out var statusData) && statusData.TryGetProperty("state", out var stateElement))
+                {
+                    state = stateElement.GetString();
+                }
                 if (state == "Completed" || state == "Failed")
                 {
                     Assert.True(true);
