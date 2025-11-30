@@ -27,7 +27,7 @@ public record CrmDiffResultDto(
 /// </summary>
 public record ElementDiffDto(
     string Element,
-    decimal?  ProjectValue,
+    decimal? ProjectValue,
     decimal? CrmValue,
     decimal? DiffPercent,
     bool IsInRange
@@ -48,8 +48,18 @@ public record CrmDiffRequest(
 /// </summary>
 public record CrmUpsertRequest(
     string CrmId,
-    string?  AnalysisMethod,
+    string? AnalysisMethod,
     string? Type,
     Dictionary<string, decimal> Elements,
     bool IsOurOreas = false
+);
+
+/// <summary>
+/// Paginated response wrapper
+/// </summary>
+public record PaginatedResult<T>(
+    List<T> Items,
+    int TotalCount,
+    int Page,
+    int PageSize
 );

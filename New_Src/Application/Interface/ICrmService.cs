@@ -5,14 +5,14 @@ namespace Application.Services;
 
 /// <summary>
 /// Service for CRM (Certified Reference Material) operations. 
-/// Equivalent to CRM.py and crm_manager. py in Python code.
+/// Equivalent to CRM. py and crm_manager.py in Python code.
 /// </summary>
 public interface ICrmService
 {
     /// <summary>
     /// Get list of all CRMs with optional filtering
     /// </summary>
-    Task<Result<List<CrmListItemDto>>> GetCrmListAsync(
+    Task<Result<PaginatedResult<CrmListItemDto>>> GetCrmListAsync(
         string? analysisMethod = null,
         string? searchText = null,
         bool? ourOreasOnly = null,
@@ -27,7 +27,7 @@ public interface ICrmService
     /// <summary>
     /// Get a CRM by its CRM ID string (e.g., "OREAS 258")
     /// </summary>
-    Task<Result<CrmListItemDto>> GetCrmByCrmIdAsync(string crmId, string? analysisMethod = null);
+    Task<Result<List<CrmListItemDto>>> GetCrmByCrmIdAsync(string crmId, string? analysisMethod = null);
 
     /// <summary>
     /// Calculate differences between project data and CRM values. 
@@ -51,7 +51,7 @@ public interface ICrmService
     Task<Result<bool>> DeleteCrmAsync(int id);
 
     /// <summary>
-    /// Import CRMs from a CSV or JSON source (bulk)
+    /// Import CRMs from CSV (bulk import)
     /// </summary>
-    Task<Result<int>> ImportCrmsAsync(Stream dataStream, string format = "csv");
+    Task<Result<int>> ImportCrmsFromCsvAsync(Stream csvStream);
 }
