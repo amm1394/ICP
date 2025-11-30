@@ -4,6 +4,8 @@ using Shared.Wrapper;
 
 namespace Isatis.Api.Controllers;
 
+// This controller provides synchronous import functionality
+// The new Api.Controllers.ProjectsController provides async/background import at /api/projects/import
 [ApiController]
 [Route("api/projects")]
 public class ImportController : ControllerBase
@@ -17,10 +19,10 @@ public class ImportController : ControllerBase
         _importQueue = importQueue;
     }
 
-    /// Import CSV - supports background enqueue if form field "background" == "true"
-    [HttpPost("import")]
+    /// Import CSV synchronously (alternative endpoint to avoid conflict with ProjectsController)
+    [HttpPost("import-sync")]
     [RequestSizeLimit(200 * 1024 * 1024)]
-    public async Task<ActionResult<Result<object>>> ImportCsv([FromForm] IFormFile? file, [FromForm] string? projectName, [FromForm] string? owner, [FromForm] string? stateJson, [FromForm] string? background)
+    public async Task<ActionResult<Result<object>>> ImportCsvSync([FromForm] IFormFile? file, [FromForm] string? projectName, [FromForm] string? owner, [FromForm] string? stateJson)
     {
         if (file == null) return BadRequest(Result<object>.Fail("File is required"));
         if (file.Length == 0) return BadRequest(Result<object>.Fail("File is empty"));
@@ -28,29 +30,10 @@ public class ImportController : ControllerBase
         // default project name
         projectName ??= "ImportedProject";
 
-        if (!string.IsNullOrEmpty(background) && bool.TryParse(background, out var bkg) && bkg)
-        {
-            // copy stream and enqueue
-            using var ms = new MemoryStream();
-            await file.OpenReadStream().CopyToAsync(ms);
-            ms.Position = 0;
-
-            var jobId = await _importQueue.EnqueueImportAsync(ms, projectName, owner, stateJson);
-            return Accepted(Result<object>.Success(new { JobId = jobId }));
-        }
-
         using var stream = file.OpenReadStream();
         var res = await _importService.ImportCsvAsync(stream, projectName, owner, stateJson);
         if (res.Succeeded) return Ok(Result<object>.Success(new { ProjectId = res.Data!.ProjectId }));
         var firstMsg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
         return BadRequest(Result<object>.Fail(firstMsg ?? "Import failed"));
-    }
-
-    [HttpGet("import/{jobId:guid}/status")]
-    public async Task<ActionResult<Result<Shared.Models.ImportJobStatusDto>>> GetStatus(Guid jobId)
-    {
-        var st = await _importQueue.GetStatusAsync(jobId);
-        if (st == null) return NotFound(Result<Shared.Models.ImportJobStatusDto>.Fail("Job not found"));
-        return Ok(Result<Shared.Models.ImportJobStatusDto>.Success(st));
     }
 }

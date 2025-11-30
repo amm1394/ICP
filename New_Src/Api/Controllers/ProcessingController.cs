@@ -4,6 +4,8 @@ using Shared.Wrapper;
 
 namespace Isatis.Api.Controllers;
 
+// This controller provides processing functionality with sync support
+// The new Api.Controllers.ProjectsController provides background-only processing
 [ApiController]
 [Route("api/projects")]
 public class ProcessingController : ControllerBase
@@ -15,19 +17,11 @@ public class ProcessingController : ControllerBase
         _processingService = processingService;
     }
 
-    // POST /api/projects/{projectId}/process
-    // optional form/query param background=true to enqueue
-    [HttpPost("{projectId:guid}/process")]
-    public async Task<ActionResult<Result<object>>> ProcessProject(Guid projectId, [FromQuery] bool background = false)
+    // POST /api/projects/{projectId}/process-sync
+    // Synchronous processing endpoint (to avoid conflict with ProjectsController)
+    [HttpPost("{projectId:guid}/process-sync")]
+    public async Task<ActionResult<Result<object>>> ProcessProjectSync(Guid projectId)
     {
-        if (background)
-        {
-            var res = await _processingService.EnqueueProcessProjectAsync(projectId);
-            if (res.Succeeded) return Accepted(Result<object>.Success(new { JobId = res.Data }));
-            var firstMsg = (res.Messages ?? Array.Empty<string>()).FirstOrDefault();
-            return BadRequest(Result<object>.Fail(firstMsg ?? "Enqueue failed"));
-        }
-
         var resSync = await _processingService.ProcessProjectAsync(projectId);
         if (resSync.Succeeded) return Ok(Result<object>.Success(new { ProjectStateId = resSync.Data }));
         var firstMsgSync = (resSync.Messages ?? Array.Empty<string>()).FirstOrDefault();

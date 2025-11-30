@@ -57,7 +57,8 @@ public class IntegrationTests : IClassFixture<CustomWebApplicationFactory>
         content.Add(new StringContent("ImportedFromTest"), "projectName");
         content.Add(new StringContent("dev"), "owner");
 
-        var res = await _client.PostAsync("/api/projects/import", content);
+        // Use the sync import endpoint instead
+        var res = await _client.PostAsync("/api/projects/import-sync", content);
         res.EnsureSuccessStatusCode();
 
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
@@ -102,8 +103,8 @@ public class IntegrationTests : IClassFixture<CustomWebApplicationFactory>
         var saveRes = await _client.PostAsJsonAsync($"/api/projects/{projectId}/save", saveBody);
         saveRes.EnsureSuccessStatusCode();
 
-        // 2) call process endpoint
-        var procRes = await _client.PostAsync($"/api/projects/{projectId}/process", null);
+        // 2) call sync process endpoint (to get ProjectStateId)
+        var procRes = await _client.PostAsync($"/api/projects/{projectId}/process-sync", null);
         procRes.EnsureSuccessStatusCode();
 
         var procBody = await procRes.Content.ReadFromJsonAsync<JsonElement>();
