@@ -56,6 +56,9 @@ public static class DependencyInjection
         // Add to Infrastructure/DependencyInjection.cs
         services.AddScoped<ICorrectionService, CorrectionService>();
 
+        // ChangeLog Service
+        services.AddScoped<IChangeLogService, ChangeLogService>();
+
         // Cleanup hosted service
         services.AddSingleton<CleanupHostedService>();
         services.AddHostedService(sp => sp.GetRequiredService<CleanupHostedService>());

@@ -1,4 +1,6 @@
-﻿using Domain.Entities;
+﻿using System.Text.Json;
+using Application.Services;
+using Domain.Entities;
 using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -16,8 +18,9 @@ public class ChangeLogService : IChangeLogService
         _logger = logger;
     }
 
-    public async Task LogChangeAsync(Guid projectId, string changeType, string solutionLabel,
-        string? element, object? oldValue, object? newValue, string? details = null, string? userId = null)
+    public async Task LogChangeAsync(Guid projectId, string changeType, string? solutionLabel = null,
+        string? element = null, string? oldValue = null, string? newValue = null,
+        string? changedBy = null, string? details = null, Guid? batchId = null)
     {
         try
         {
@@ -27,47 +30,71 @@ public class ChangeLogService : IChangeLogService
                 ChangeType = changeType,
                 SolutionLabel = solutionLabel,
                 Element = element,
-                OldValue = oldValue?.ToString(),
-                NewValue = newValue?.ToString(),
+                OldValue = oldValue,
+                NewValue = newValue,
+                ChangedBy = changedBy,
                 Details = details,
-                UserId = userId,
+                BatchId = batchId,
                 Timestamp = DateTime.UtcNow
             };
 
             _db.ChangeLogs.Add(log);
             await _db.SaveChangesAsync();
 
-            _logger.LogDebug("Logged change: {ChangeType} for {SolutionLabel} in project {ProjectId}",
-                changeType, solutionLabel, projectId);
+            _logger.LogDebug("Logged change: {ChangeType} for {SolutionLabel}", changeType, solutionLabel);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to log change for project {ProjectId}", projectId);
-            // Don't throw - logging failure shouldn't break the main operation
         }
     }
 
-    public async Task<List<ChangeLog>> GetChangesAsync(Guid projectId, string? changeType = null, int limit = 100)
+    public async Task LogBatchChangesAsync(Guid projectId, string changeType,
+        IEnumerable<(string? SolutionLabel, string? Element, string? OldValue, string? NewValue)> changes,
+        string? changedBy = null, string? details = null)
     {
-        var query = _db.ChangeLogs
-            .AsNoTracking()
-            .Where(c => c.ProjectId == projectId);
-
-        if (!string.IsNullOrEmpty(changeType))
+        var batchId = Guid.NewGuid();
+        var logs = changes.Select(c => new ChangeLog
         {
-            query = query.Where(c => c.ChangeType == changeType);
-        }
+            ProjectId = projectId,
+            ChangeType = changeType,
+            SolutionLabel = c.SolutionLabel,
+            Element = c.Element,
+            OldValue = c.OldValue,
+            NewValue = c.NewValue,
+            ChangedBy = changedBy,
+            Details = details,
+            BatchId = batchId,
+            Timestamp = DateTime.UtcNow
+        }).ToList();
 
-        return await query
+        _db.ChangeLogs.AddRange(logs);
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Logged batch of {Count} changes for project {ProjectId}", logs.Count, projectId);
+    }
+
+    public async Task<List<ChangeLog>> GetChangeLogAsync(Guid projectId, int page = 1, int pageSize = 50)
+    {
+        return await _db.ChangeLogs
+            .Where(c => c.ProjectId == projectId)
             .OrderByDescending(c => c.Timestamp)
-            .Take(limit)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<List<ChangeLog>> GetChangesByTypeAsync(Guid projectId, string changeType)
+    {
+        return await _db.ChangeLogs
+            .Where(c => c.ProjectId == projectId && c.ChangeType == changeType)
+            .OrderByDescending(c => c.Timestamp)
             .ToListAsync();
     }
 
     public async Task<List<ChangeLog>> GetChangesBySampleAsync(Guid projectId, string solutionLabel)
     {
         return await _db.ChangeLogs
-            .AsNoTracking()
             .Where(c => c.ProjectId == projectId && c.SolutionLabel == solutionLabel)
             .OrderByDescending(c => c.Timestamp)
             .ToListAsync();
