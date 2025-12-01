@@ -1,13 +1,14 @@
-﻿using System.Text.Json;
-using System.Text.RegularExpressions;
-using Application.DTOs;
+﻿using Application.DTOs;
 using Application.Services;
 using Infrastructure.Persistence;
 using MathNet.Numerics;
 using MathNet.Numerics.LinearRegression;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileSystemGlobbing.Internal;
 using Microsoft.Extensions.Logging;
 using Shared.Wrapper;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Infrastructure.Services;
 
@@ -47,17 +48,17 @@ public class DriftCorrectionService : IDriftCorrectionService
             if (!rawData.Any())
                 return Result<DriftCorrectionResult>.Fail("No data found for project");
 
-            // Detect segments
+            // Detect segments (Python-compatible: piecewise between standards)
             var segments = DetectSegments(rawData, request.BasePattern, request.ConePattern);
 
             // Get elements to analyze
             var elements = request.SelectedElements ?? GetAllElements(rawData);
 
-            // Calculate drift for each element
+            // Calculate drift for each element using piecewise approach (Python-compatible)
             var elementDrifts = new Dictionary<string, ElementDriftInfo>();
             foreach (var element in elements)
             {
-                var driftInfo = CalculateElementDrift(rawData, element, segments);
+                var driftInfo = CalculateElementDriftPiecewise(rawData, element, segments);
                 if (driftInfo != null)
                     elementDrifts[element] = driftInfo;
             }
@@ -102,20 +103,23 @@ public class DriftCorrectionService : IDriftCorrectionService
             // Get elements
             var elements = request.SelectedElements ?? GetAllElements(rawData);
 
-            // Calculate drift info
+            // Calculate drift info using piecewise approach
             var elementDrifts = new Dictionary<string, ElementDriftInfo>();
             foreach (var element in elements)
             {
-                var driftInfo = CalculateElementDrift(rawData, element, segments);
+                var driftInfo = CalculateElementDriftPiecewise(rawData, element, segments);
                 if (driftInfo != null)
                     elementDrifts[element] = driftInfo;
             }
 
+            // Calculate segment-specific ratios for piecewise correction
+            var segmentRatios = CalculateSegmentRatios(rawData, segments, elements);
+
             // Apply correction based on method
             var correctedData = request.Method switch
             {
-                DriftMethod.Linear => ApplyLinearCorrection(rawData, segments, elements, elementDrifts),
-                DriftMethod.Stepwise => ApplyStepwiseCorrection(rawData, segments, elements, elementDrifts),
+                DriftMethod.Linear => ApplyLinearCorrectionPiecewise(rawData, segments, elements, segmentRatios),
+                DriftMethod.Stepwise => ApplyStepwiseCorrectionArithmetic(rawData, segments, elements, segmentRatios),
                 DriftMethod.Polynomial => ApplyPolynomialCorrection(rawData, elements),
                 _ => rawData.Select((d, i) => new CorrectedSampleDto(
                     d.SolutionLabel,
@@ -411,40 +415,98 @@ public class DriftCorrectionService : IDriftCorrectionService
             .ToList();
     }
 
-    private ElementDriftInfo? CalculateElementDrift(List<ParsedRow> data, string element, List<DriftSegment> segments)
+    /// <summary>
+    /// Calculate element drift using piecewise approach (Python-compatible)
+    /// Instead of global regression, calculates drift between consecutive standards
+    /// </summary>
+    private ElementDriftInfo? CalculateElementDriftPiecewise(List<ParsedRow> data, string element, List<DriftSegment> segments)
     {
-        var values = data
-            .Select((d, i) => (Index: i, Value: GetElementValue(d, element)))
-            .Where(x => x.Value.HasValue)
-            .ToList();
-
-        if (values.Count < 2)
+        if (segments.Count == 0)
             return null;
 
-        var xData = values.Select(v => (double)v.Index).ToArray();
-        var yData = values.Select(v => (double)v.Value!.Value).ToArray();
+        var firstSegment = segments.First();
+        var lastSegment = segments.Last();
 
-        var (intercept, slope) = Fit.Line(xData, yData);
+        var firstValue = GetElementValue(data[firstSegment.StartIndex], element);
+        var lastValue = GetElementValue(data[lastSegment.EndIndex], element);
 
-        var firstValue = yData.First();
-        var lastValue = yData.Last();
-        var driftPercent = firstValue != 0 ? ((lastValue - firstValue) / firstValue) * 100 : 0;
+        if (!firstValue.HasValue || !lastValue.HasValue || firstValue.Value == 0)
+            return null;
+
+        var driftPercent = ((lastValue.Value - firstValue.Value) / firstValue.Value) * 100;
+
+        // Calculate average slope across all segments
+        decimal totalSlope = 0;
+        int validSegments = 0;
+        foreach (var segment in segments)
+        {
+            var startVal = GetElementValue(data[segment.StartIndex], element);
+            var endVal = GetElementValue(data[segment.EndIndex], element);
+            if (startVal.HasValue && endVal.HasValue && segment.SampleCount > 0)
+            {
+                totalSlope += (endVal.Value - startVal.Value) / segment.SampleCount;
+                validSegments++;
+            }
+        }
+
+        var avgSlope = validSegments > 0 ? totalSlope / validSegments : 0;
 
         return new ElementDriftInfo(
             element,
-            (decimal)(firstValue / (intercept + slope * xData.First())),
-            (decimal)(lastValue / (intercept + slope * xData.Last())),
-            (decimal)driftPercent,
-            (decimal)slope,
-            (decimal)intercept
+            1.0m, // Initial ratio (normalized to 1)
+            lastValue.Value / firstValue.Value, // Final ratio
+            driftPercent,
+            avgSlope,
+            firstValue.Value // Intercept = first value
         );
     }
 
-    private List<CorrectedSampleDto> ApplyLinearCorrection(
+    /// <summary>
+    /// Calculate drift ratios for each segment and element
+    /// Python-compatible: calculates ratio between start and end of each segment
+    /// </summary>
+    private Dictionary<int, Dictionary<string, decimal>> CalculateSegmentRatios(
+        List<ParsedRow> data,
+        List<DriftSegment> segments,
+        List<string> elements)
+    {
+        var result = new Dictionary<int, Dictionary<string, decimal>>();
+
+        foreach (var segment in segments)
+        {
+            var ratios = new Dictionary<string, decimal>();
+
+            foreach (var element in elements)
+            {
+                var startValue = GetElementValue(data[segment.StartIndex], element);
+                var endValue = GetElementValue(data[segment.EndIndex], element);
+
+                if (startValue.HasValue && endValue.HasValue && startValue.Value != 0)
+                {
+                    // Python: ratio = end_value / start_value
+                    ratios[element] = endValue.Value / startValue.Value;
+                }
+                else
+                {
+                    ratios[element] = 1.0m; // No drift
+                }
+            }
+
+            result[segment.SegmentIndex] = ratios;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Apply linear correction using piecewise interpolation (Python-compatible)
+    /// For each segment, interpolates correction factor linearly between start and end standards
+    /// </summary>
+    private List<CorrectedSampleDto> ApplyLinearCorrectionPiecewise(
         List<ParsedRow> data,
         List<DriftSegment> segments,
         List<string> elements,
-        Dictionary<string, ElementDriftInfo> elementDrifts)
+        Dictionary<int, Dictionary<string, decimal>> segmentRatios)
     {
         var result = new List<CorrectedSampleDto>();
 
@@ -460,18 +522,25 @@ public class DriftCorrectionService : IDriftCorrectionService
             {
                 var originalValue = GetElementValue(data[i], element);
 
-                if (originalValue.HasValue && elementDrifts.TryGetValue(element, out var driftInfo))
+                if (originalValue.HasValue && segment != null &&
+                    segmentRatios.TryGetValue(segmentIndex, out var ratios) &&
+                    ratios.TryGetValue(element, out var segmentRatio))
                 {
-                    // Linear interpolation within segment
+                    // Python-compatible linear interpolation within segment
+                    // progress = (i - start) / (end - start)
+                    // effective_ratio = 1. 0 + (ratio - 1.0) * progress
+                    // correction = 1.0 / effective_ratio
+
                     decimal factor = 1.0m;
+                    var segmentLength = segment.EndIndex - segment.StartIndex;
 
-                    if (segment != null && segment.EndIndex != segment.StartIndex)
+                    if (segmentLength > 0)
                     {
-                        var progress = (decimal)(i - segment.StartIndex) / (segment.EndIndex - segment.StartIndex);
-                        var driftAtPoint = driftInfo.InitialRatio + (driftInfo.FinalRatio - driftInfo.InitialRatio) * progress;
+                        var progress = (decimal)(i - segment.StartIndex) / segmentLength;
+                        var effectiveRatio = 1.0m + (segmentRatio - 1.0m) * progress;
 
-                        if (driftAtPoint != 0)
-                            factor = 1.0m / driftAtPoint;
+                        if (effectiveRatio != 0)
+                            factor = 1.0m / effectiveRatio;
                     }
 
                     correctedValues[element] = originalValue.Value * factor;
@@ -496,29 +565,40 @@ public class DriftCorrectionService : IDriftCorrectionService
         return result;
     }
 
-    private List<CorrectedSampleDto> ApplyStepwiseCorrection(
-    List<ParsedRow> data,
-    List<DriftSegment> segments,
-    List<string> elements,
-    Dictionary<string, ElementDriftInfo> elementDrifts)
+    /// <summary>
+    /// Apply stepwise correction using arithmetic progression (Python-compatible)
+    /// Python formula: effective_ratio = 1.0 + step_delta * (step_index + 1)
+    /// where step_delta = (total_ratio - 1.0) / n_segments
+    /// </summary>
+    private List<CorrectedSampleDto> ApplyStepwiseCorrectionArithmetic(
+        List<ParsedRow> data,
+        List<DriftSegment> segments,
+        List<string> elements,
+        Dictionary<int, Dictionary<string, decimal>> segmentRatios)
     {
         var result = new List<CorrectedSampleDto>();
 
-        // ✅ Python-compatible: Arithmetic progression
-        // Store delta per segment for each element
-        var elementDeltas = new Dictionary<string, decimal>();
+        // Calculate total drift ratio and step delta for each element
+        // Python: delta = ratio - 1. 0; step_delta = delta / n
+        var elementStepDeltas = new Dictionary<string, decimal>();
+
         foreach (var element in elements)
         {
-            if (elementDrifts.TryGetValue(element, out var driftInfo) && driftInfo.InitialRatio != 0)
+            decimal totalRatio = 1.0m;
+
+            // Calculate cumulative ratio across all segments
+            foreach (var segment in segments)
             {
-                var ratio = driftInfo.FinalRatio / driftInfo.InitialRatio;
-                var delta = ratio - 1.0m;
-                elementDeltas[element] = delta / segments.Count; // step_delta
+                if (segmentRatios.TryGetValue(segment.SegmentIndex, out var ratios) &&
+                    ratios.TryGetValue(element, out var ratio))
+                {
+                    totalRatio *= ratio;
+                }
             }
-            else
-            {
-                elementDeltas[element] = 0m;
-            }
+
+            // Python: delta = ratio - 1.0; step_delta = delta / n
+            var delta = totalRatio - 1.0m;
+            elementStepDeltas[element] = segments.Count > 0 ? delta / segments.Count : 0;
         }
 
         for (int i = 0; i < data.Count; i++)
@@ -533,11 +613,19 @@ public class DriftCorrectionService : IDriftCorrectionService
             {
                 var originalValue = GetElementValue(data[i], element);
 
-                var effectiveRatio = 1.0m + elementDeltas[element] * (segmentIndex + 1);
-                var factor = effectiveRatio != 0 ? 1.0m / effectiveRatio : 1.0m;
+                if (originalValue.HasValue && elementStepDeltas.TryGetValue(element, out var stepDelta))
+                {
+                    // Python formula: effective_ratio = 1.0 + step_delta * (step_index + 1)
+                    var effectiveRatio = 1.0m + stepDelta * (segmentIndex + 1);
+                    var factor = effectiveRatio != 0 ? 1.0m / effectiveRatio : 1.0m;
 
-                correctedValues[element] = originalValue.HasValue ? originalValue.Value * factor : null;
-                correctionFactors[element] = factor;
+                    correctedValues[element] = originalValue.Value * factor;
+                    correctionFactors[element] = factor;
+                }
+                else
+                {
+                    correctedValues[element] = originalValue;
+                }
             }
 
             result.Add(new CorrectedSampleDto(
