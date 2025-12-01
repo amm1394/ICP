@@ -1,0 +1,124 @@
+﻿@page "/login"
+@using MudBlazor
+@using WebUI.Services
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+@inject AuthService AuthService
+
+<!-- بدنه اصلی صفحه -->
+<div class="d-flex align-center justify-center login-page-root">
+    <div class="login-container">
+
+        <!-- پنل سمت چپ -->
+        <div class="left-panel">
+            <div class="logo-text">RASF</div>
+            <div class="sub-text">
+                Research & Analysis<br />
+                System Framework
+            </div>
+        </div>
+
+        <!-- پنل سمت راست -->
+        <div class="right-panel">
+            <div class="login-title">Welcome Back</div>
+
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="mt-6" Centered="true">
+
+                <!-- تب ورود -->
+                <MudTabPanel Text="Sign In">
+                    <MudForm @ref="form" @bind-IsValid="@success" Class="d-flex flex-column gap-4">
+
+                        <MudTextField @bind-Value="email" Placeholder="Email Address"
+                                      Variant="Variant.Outlined" DisableUnderLine="true"
+                                      Class="custom-input" InputType="InputType.Email"
+                                      Required="true" RequiredError="لطفا ایمیل را وارد کنید" />
+
+                        <MudTextField @bind-Value="password" Placeholder="Password"
+                                      Variant="Variant.Outlined" DisableUnderLine="true"
+                                      Class="custom-input" InputType="InputType.Password"
+                                      Required="true" RequiredError="لطفا رمز عبور را وارد کنید" />
+
+                        <div class="d-flex justify-space-between align-center mt-1">
+                            <MudCheckBox @bind-Value="rememberMe" Label="Remember me" Color="Color.Primary" Size="Size.Small" Dense="true" />
+                            <MudLink Href="#" Underline="Underline.Hover" Color="Color.Primary" Style="font-size: 14px;">Forgot Password?</MudLink>
+                        </div>
+
+                        <MudButton Variant="Variant.Filled" FullWidth="true" OnClick="HandleLogin"
+                                   Class="btn-primary-custom mt-4" Disabled="@(processing)">
+                            @if (processing)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" Color="Color.Surface" />
+                            }
+                            else
+                            {
+                                <span>Sign In</span>
+                            }
+                        </MudButton>
+
+                        <div class="d-flex align-center my-3">
+                            <MudDivider Class="flex-grow-1" />
+                            <MudText Typo="Typo.caption" Class="mx-2" Color="Color.Secondary">OR</MudText>
+                            <MudDivider Class="flex-grow-1" />
+                        </div>
+
+                        <MudButton Variant="Variant.Filled" FullWidth="true" OnClick="GuestLogin"
+                                   Class="btn-secondary-custom" StartIcon="@Icons.Material.Filled.PersonOutline">
+                            Continue as Guest
+                        </MudButton>
+
+                    </MudForm>
+                </MudTabPanel>
+
+                <!-- تب ثبت نام (فعلا غیر فعال) -->
+                <MudTabPanel Text="Request Access">
+                    <div class="d-flex flex-column align-center justify-center h-100 mt-8">
+                        <MudIcon Icon="@Icons.Material.TwoTone.LockPerson" Size="Size.Large" Color="Color.Secondary" Class="mb-4" Style="font-size: 48px;" />
+                        <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Secondary">
+                            Account creation is restricted to lab personnel.<br />
+                            Please contact the system administrator.
+                        </MudText>
+                    </div>
+                </MudTabPanel>
+            </MudTabs>
+        </div>
+    </div>
+</div>
+
+@code {
+    bool success;
+    MudForm form = default!; // رفع وارنینگ Nullable
+    bool processing = false;
+    string email = "";
+    string password = "";
+    bool rememberMe = true;
+
+    private async Task HandleLogin()
+    {
+        await form.Validate();
+        if (!form.IsValid) return;
+
+        processing = true;
+
+        // شبیه‌سازی تاخیر (یا تماس واقعی با API)
+        var result = await AuthService.LoginAsync(email, password);
+
+        processing = false;
+
+        if (result.IsAuthenticated)
+        {
+            Snackbar.Add($"Welcome back, {result.Name}!", Severity.Success);
+            NavManager.NavigateTo("/dashboard");
+        }
+        else
+        {
+            Snackbar.Add(result.Message, Severity.Error);
+        }
+    }
+
+    private void GuestLogin()
+    {
+        var result = AuthService.GuestLogin();
+        Snackbar.Add("Logged in as Guest", Severity.Info);
+        NavManager.NavigateTo("/dashboard");
+    }
+}

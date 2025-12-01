@@ -16,4 +16,9 @@
 		<ProjectReference Include="..\Shared\Shared.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="DTOs\Authentication\" />
+	  <Folder Include="Interface\Authentication\" />
+	</ItemGroup>
+
 </Project>

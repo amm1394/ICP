@@ -1,0 +1,101 @@
+﻿@page "/login"
+@using MudBlazor
+@using WebUI.Services
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+@inject AuthService AuthService
+
+<style>
+    .rasf-title { font-family: 'Segoe UI', sans-serif; font-weight: 900; color: #2c3e50; }
+    .login-btn { background: linear-gradient(to bottom, #3b82f6, #2563eb) !important; color: white !important; }
+    .guest-btn { border: 2px solid #94a3b8 !important; color: #64748b !important; }
+</style>
+
+<MudGrid Spacing="0" Style="height: 100vh;">
+    <!-- Left Panel -->
+    <MudItem xs="12" md="5" Class="d-flex align-center justify-center" 
+             Style="background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);">
+        <div class="d-flex flex-column align-center">
+            <MudText Typo="Typo.h1" Class="rasf-title" Style="font-size: 5rem;">ICP</MudText>
+            <MudText Typo="Typo.h6" Align="Align.Center" Class="mud-text-secondary">Isatis Correction Platform</MudText>
+        </div>
+    </MudItem>
+
+    <!-- Right Panel -->
+    <MudItem xs="12" md="7" Class="d-flex align-center justify-center">
+        <MudPaper Elevation="0" Width="400px" Class="pa-8">
+            <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-10" Style="font-weight: 800; color: #2c3e50;">
+                Welcome Back
+            </MudText>
+
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+                <MudTabPanel Text="Sign In">
+                    <MudForm @bind-IsValid="@success" @ref="form">
+                        <MudTextField @bind-Value="email" Label="Email" Variant="Variant.Outlined" 
+                                      Required="true" RequiredError="Email is required" 
+                                      InputType="InputType.Email" Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="password" Label="Password" Variant="Variant.Outlined" 
+                                      InputType="InputType.Password" Required="true" 
+                                      RequiredError="Password is required" Class="mb-6" />
+
+                        <MudCheckBox @bind-Value="rememberMe" Label="Remember Me" Color="Color.Primary" Size="Size.Small" Class="mb-4"/>
+
+                        <MudButton Variant="Variant.Filled" Size="Size.Large" FullWidth="true" 
+                                   OnClick="HandleLogin" Class="login-btn py-3 mb-3" Disabled="@(!success)">
+                            @if (processing) { <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/> }
+                            else { <MudText>Sign In</MudText> }
+                        </MudButton>
+
+                        <MudButton Variant="Variant.Outlined" Size="Size.Large" FullWidth="true" 
+                                   OnClick="GuestLogin" Class="guest-btn py-3">
+                            Continue as Guest
+                        </MudButton>
+                    </MudForm>
+                </MudTabPanel>
+                
+                <MudTabPanel Text="Sign Up">
+                    <MudText Typo="Typo.body1" Class="mud-text-secondary" Align="Align.Center">
+                        Signup is not available in this version.
+                    </MudText>
+                </MudTabPanel>
+            </MudTabs>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    bool success;
+    MudForm form;
+    bool processing = false;
+    string email = "";
+    string password = "";
+    bool rememberMe = true;
+
+    private async Task HandleLogin()
+    {
+        await form.Validate();
+        if (!form.IsValid) return;
+
+        processing = true;
+        var result = await AuthService.LoginAsync(email, password);
+        processing = false;
+
+        if (result.IsAuthenticated)
+        {
+            Snackbar.Add($"Welcome back, {result.Name}!", Severity.Success);
+            NavManager.NavigateTo("/dashboard");
+        }
+        else
+        {
+            Snackbar.Add(result.Message, Severity.Error);
+        }
+    }
+
+    private void GuestLogin()
+    {
+        var result = AuthService.GuestLogin();
+        Snackbar.Add($"Logged in as Guest", Severity.Info);
+        NavManager.NavigateTo("/dashboard");
+    }
+}

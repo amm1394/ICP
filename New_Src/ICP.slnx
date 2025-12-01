@@ -6,5 +6,5 @@
   <Project Path="Infrastructure/Infrastructure.csproj" />
   <Project Path="Shared/Shared.csproj" />
   <Project Path="Tests/Tests.csproj" />
-  <Project Path="Web/Web.csproj" />
+  <Project Path="WebUI/WebUI.csproj" />
 </Solution>

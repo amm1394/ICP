@@ -1,10 +1,8 @@
-using System.Text;
-using Application;
-using Application.Services;
+﻿using Application;
 using Infrastructure;
-using Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -63,12 +61,12 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
+    // اجازه دسترسی به کلاینت‌های مختلف
+    options.AddPolicy("AllowClient",
+        b => b.AllowAnyOrigin() // برای تست، اجازه به همه آدرس‌ها
               .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
+              .AllowAnyHeader()
+              .WithExposedHeaders("Content-Disposition"));
 });
 
 // ============================================
