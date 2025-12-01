@@ -1,0 +1,89 @@
+﻿@page "/dashboard"
+@using WebUI.Services
+@inject AuthService AuthService
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+
+<PageTitle>ICP - Dashboard</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        <MudText Typo="Typo.h4" Class="mb-4">
+            👋 Welcome, @userName!
+        </MudText>
+        
+        <MudText Typo="Typo.body1" Class="mb-6 mud-text-secondary">
+            Position: @userPosition
+        </MudText>
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.h6" Class="mb-4">Quick Actions</MudText>
+        
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="pa-4 cursor-pointer" @onclick="@(() => NavManager.NavigateTo("/import"))">
+                    <MudCardContent Class="text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Import Data</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Upload CSV/Excel files</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="pa-4 cursor-pointer" @onclick="@(() => NavManager. NavigateTo("/pivot"))">
+                    <MudCardContent Class="text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.TableChart" Size="Size. Large" Color="Color.Secondary" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Pivot Data</MudText>
+                        <MudText Typo="Typo. body2" Class="mud-text-secondary">View and transform data</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="pa-4 cursor-pointer" @onclick="@(() => NavManager.NavigateTo("/process"))">
+                    <MudCardContent Class="text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Science" Size="Size.Large" Color="Color.Tertiary" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Process</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Weight, Volume, Drift corrections</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-6" />
+
+        <MudButton Variant="Variant.Outlined" 
+                   Color="Color.Error" 
+                   StartIcon="@Icons.Material.Filled.Logout"
+                   OnClick="HandleLogout">
+            Logout
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string userName = "User";
+    private string userPosition = "User";
+
+    protected override void OnInitialized()
+    {
+        var user = AuthService.GetCurrentUser();
+        if (user == null || ! user.IsAuthenticated)
+        {
+            NavManager.NavigateTo("/login");
+            return;
+        }
+
+        userName = user. Name;
+        userPosition = user.Position;
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Snackbar.Add("Logged out successfully", Severity.Info);
+        NavManager.NavigateTo("/login");
+    }
+}

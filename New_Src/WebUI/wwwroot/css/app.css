@@ -1,0 +1,191 @@
+﻿/* ===================================
+   ICP - Global Styles
+   =================================== */
+
+/* --- CSS Variables (Theme) --- */
+:root {
+    /* Primary Colors */
+    --primary-50: #eff6ff;
+    --primary-100: #dbeafe;
+    --primary-200: #bfdbfe;
+    --primary-300: #93c5fd;
+    --primary-400: #60a5fa;
+    --primary-500: #3b82f6;
+    --primary-600: #2563eb;
+    --primary-700: #1d4ed8;
+    --primary-800: #1e40af;
+    --primary-900: #1e3a8a;
+    /* Neutral Colors */
+    --neutral-50: #f8fafc;
+    --neutral-100: #f1f5f9;
+    --neutral-200: #e2e8f0;
+    --neutral-300: #cbd5e1;
+    --neutral-400: #94a3b8;
+    --neutral-500: #64748b;
+    --neutral-600: #475569;
+    --neutral-700: #334155;
+    --neutral-800: #1e293b;
+    --neutral-900: #0f172a;
+    /* Text Colors */
+    --text-primary: #2c3e50;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    /* Background */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    /* Border Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0. 05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0. 1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0. 1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0. 1);
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
+    --transition-slow: 350ms ease;
+}
+
+/* --- Base Styles --- */
+html, body {
+    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+}
+
+/* --- Buttons --- */
+.btn-primary {
+    background: linear-gradient(to bottom, var(--primary-500), var(--primary-600)) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    border-radius: var(--radius-lg) !important;
+    transition: all var(--transition-normal) !important;
+}
+
+    .btn-primary:hover {
+        background: linear-gradient(to bottom, var(--primary-400), var(--primary-500)) !important;
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+    }
+
+.btn-outline {
+    border: 2px solid var(--neutral-400) !important;
+    color: var(--neutral-500) !important;
+    font-weight: 600 !important;
+    border-radius: var(--radius-lg) !important;
+    background: transparent !important;
+    transition: all var(--transition-normal) !important;
+}
+
+    .btn-outline:hover {
+        background: var(--neutral-100) !important;
+        border-color: var(--neutral-500) !important;
+    }
+
+.btn-lg {
+    height: 56px !important;
+    font-size: 1rem !important;
+}
+
+.btn-md {
+    height: 48px !important;
+    font-size: 0.95rem !important;
+}
+
+/* --- Form Inputs --- */
+.input-outlined.mud-input-outlined-border {
+    border-radius: var(--radius-lg) !important;
+    border-width: 2px !important;
+    border-color: var(--neutral-300) !important;
+    transition: all var(--transition-normal) !important;
+}
+
+.input-outlined:focus-within .mud-input-outlined-border {
+    border-color: var(--primary-500) !important;
+}
+
+/* --- Links --- */
+.link {
+    color: var(--primary-500);
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+    .link:hover {
+        color: var(--primary-700);
+        text-decoration: underline;
+    }
+
+/* --- Cards --- */
+.card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+}
+
+.card-hoverable {
+    transition: all var(--transition-normal);
+    cursor: pointer;
+}
+
+    .card-hoverable:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+    }
+
+/* --- Typography --- */
+.title-xl {
+    font-weight: 900;
+    font-size: 4rem;
+    color: var(--text-primary);
+    letter-spacing: -2px;
+}
+
+.title-lg {
+    font-weight: 800;
+    font-size: 2rem;
+    color: var(--text-primary);
+}
+
+.title-md {
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+
+/* --- Utilities --- */
+.full-height {
+    min-height: 100vh;
+}
+
+.flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* --- Panel Backgrounds --- */
+.panel-light {
+    background: linear-gradient(135deg, #ffffff 0%, var(--neutral-100) 100%);
+}
+
+.panel-gradient {
+    background: var(--bg-gradient);
+}

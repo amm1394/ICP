@@ -1,0 +1,108 @@
+﻿/* ===================================
+   ICP - Login Page Styles
+   =================================== */
+
+.login-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.login-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+.login-logo-panel {
+    flex: 0 0 42%;
+    background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-logo-text {
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: 900;
+    font-size: 6rem;
+    color: #2c3e50;
+    letter-spacing: -2px;
+}
+
+.login-logo-subtitle {
+    color: #64748b;
+    font-size: 1.1rem;
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
+.login-form-panel {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: #f8fafc;
+}
+
+.login-form-card {
+    width: 100%;
+    max-width: 420px;
+    padding: 2rem;
+}
+
+.login-welcome-title {
+    font-weight: 800;
+    color: #2c3e50;
+    margin-bottom: 2rem;
+}
+
+.login-btn {
+    background: linear-gradient(to bottom, #3b82f6, #2563eb) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    height: 56px !important;
+    border-radius: 16px !important;
+}
+
+    .login-btn:hover {
+        background: linear-gradient(to bottom, #60a5fa, #3b82f6) !important;
+    }
+
+.guest-btn {
+    border: 2px solid #94a3b8 !important;
+    color: #64748b !important;
+    font-weight: 600 !important;
+    height: 52px !important;
+    border-radius: 16px !important;
+    background: transparent !important;
+}
+
+    .guest-btn:hover {
+        background: #f1f5f9 !important;
+    }
+
+.login-link {
+    color: #3b82f6;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+    .login-link:hover {
+        color: #1d4ed8;
+        text-decoration: underline;
+    }
+
+@media (max-width: 768px) {
+    .login-wrapper {
+        flex-direction: column;
+    }
+
+    .login-logo-panel {
+        flex: 0 0 auto;
+        min-height: 200px;
+    }
+
+    .login-logo-text {
+        font-size: 4rem;
+    }
+}
