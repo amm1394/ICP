@@ -59,6 +59,8 @@ public static class DependencyInjection
         // ChangeLog Service
         services.AddScoped<IChangeLogService, ChangeLogService>();
 
+        services.AddScoped<IAuthService, AuthService>();
+
         // Cleanup hosted service
         services.AddSingleton<CleanupHostedService>();
         services.AddHostedService(sp => sp.GetRequiredService<CleanupHostedService>());
