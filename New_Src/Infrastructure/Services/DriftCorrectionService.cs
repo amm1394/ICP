@@ -1,13 +1,12 @@
-﻿using System.Text.Json;
-using System.Text.RegularExpressions;
-using Application.DTOs;
+﻿using Application.DTOs;
 using Application.Services;
 using Infrastructure.Persistence;
 using MathNet.Numerics;
-using MathNet.Numerics.LinearRegression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shared.Wrapper;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Infrastructure.Services;
 
@@ -630,6 +629,8 @@ public class DriftCorrectionService : IDriftCorrectionService
     /// 
     /// This is ARITHMETIC progression (linear addition), NOT GEOMETRIC (multiplication)
     /// </summary>
+    // فایل: Infrastructure/Services/DriftCorrectionService.cs
+
     private List<CorrectedSampleDto> ApplyStepwiseCorrectionArithmetic(
         List<ParsedRow> data,
         List<DriftSegment> segments,
@@ -638,31 +639,9 @@ public class DriftCorrectionService : IDriftCorrectionService
     {
         var result = new List<CorrectedSampleDto>();
 
-        // Calculate total drift ratio and step delta for each element
-        // Python: delta = ratio - 1.0; step_delta = delta / n
-        var elementStepDeltas = new Dictionary<string, decimal>();
-
-        foreach (var element in elements)
-        {
-            decimal totalRatio = 1.0m;
-
-            // Calculate cumulative ratio across all segments
-            foreach (var segment in segments)
-            {
-                if (segmentRatios.TryGetValue(segment.SegmentIndex, out var ratios) &&
-                    ratios.TryGetValue(element, out var ratio))
-                {
-                    totalRatio *= ratio;
-                }
-            }
-
-            // Python formula: delta = ratio - 1.0; step_delta = delta / n
-            var delta = totalRatio - 1.0m;
-            elementStepDeltas[element] = segments.Count > 0 ? delta / segments.Count : 0;
-        }
-
         for (int i = 0; i < data.Count; i++)
         {
+            // 1. پیدا کردن سگمنت جاری
             var segment = segments.FirstOrDefault(s => i >= s.StartIndex && i <= s.EndIndex);
             var segmentIndex = segment?.SegmentIndex ?? 0;
 
@@ -673,12 +652,60 @@ public class DriftCorrectionService : IDriftCorrectionService
             {
                 var originalValue = GetElementValue(data[i], element);
 
-                if (originalValue.HasValue && elementStepDeltas.TryGetValue(element, out var stepDelta))
+                // شرط پایتون: اگر در سگمنت هستیم و دیتای استاندارد وجود دارد
+                if (originalValue.HasValue && segment != null &&
+                    segmentRatios.TryGetValue(segmentIndex, out var ratios) &&
+                    ratios.TryGetValue(element, out var ratio))
                 {
-                    // Python formula: effective_ratio = 1.0 + step_delta * (step_index + 1)
-                    // This is ARITHMETIC progression
-                    var effectiveRatio = 1.0m + stepDelta * (segmentIndex + 1);
-                    var factor = effectiveRatio != 0 ? 1.0m / effectiveRatio : 1.0m;
+                    // ============================================================
+                    // منطق پایتون: (RM_check.py -> calculate_corrected_values)
+                    // delta = ratio - 1.0
+                    // step_delta = delta / n (n = تعداد نمونه‌ها در بازه)
+                    // effective_ratio = 1.0 + step_delta * (step_index + 1)
+                    // ============================================================
+
+                    decimal delta = ratio - 1.0m;
+
+                    // تعداد کل نمونه‌ها در این بازه (فاصله بین استاندارد شروع و پایان)
+                    int n = segment.EndIndex - segment.StartIndex;
+
+                    // محاسبه گام (Step Delta)
+                    // اگر n=0 باشد (یعنی دو استاندارد پشت هم باشند)، تغییر ناگهانی اعمال می‌شود
+                    decimal stepDelta = n > 0 ? delta / n : 0;
+
+                    // موقعیت فعلی در سگمنت (از 0 شروع می‌شود)
+                    int stepIndex = i - segment.StartIndex;
+
+                    // محاسبه ضریب موثر برای این ردیف خاص
+                    // (stepIndex + 1) چون در پایتون لیست از 1 شروع نمی‌شود ولی در فرمول j+1 دارد
+                    // اما چون در پایتون start_idx+1 شروع می‌شود، اینجا هم منطق مشابه است.
+                    // اگر i == StartIndex باشد (خود استاندارد اول)، stepIndex=0 است ولی ما اصلاح را برای بعدش می‌خواهیم.
+                    // معمولاً استانداردها خودشان اصلاح نمی‌شوند یا ضریب 1 می‌گیرند.
+                    // طبق لاجیک پایتون effective_row_ids از start+1 شروع می‌شوند.
+
+                    decimal effectiveRatio = 1.0m + (stepDelta * stepIndex);
+
+                    // نکته دقیق پایتون: 
+                    // اگر دقیقاً روی استاندارد اول باشیم (stepIndex=0)، ضریب باید 1 باشد؟ 
+                    // یا طبق فرمول پایتون (j+1) که j از 0 تا n است؟
+                    // در پایتون: effective_row_ids = row_ids[start_idx + 1:]
+                    // پس اولین نمونه مجهول، j=0 است و ضریب (0+1)*stepDelta می‌گیرد.
+                    // اینجا i شامل خود استاندارد هم می‌شود. 
+                    // اگر i == StartIndex است، معمولاً یعنی خود استاندارد است و نباید دریفت بگیرد (یا دریفت 1).
+
+                    if (i == segment.StartIndex)
+                    {
+                        effectiveRatio = 1.0m;
+                    }
+                    else
+                    {
+                        // برای نمونه‌های بعد از استاندارد اول
+                        effectiveRatio = 1.0m + (stepDelta * stepIndex);
+                    }
+
+                    // محاسبه فاکتور نهایی (معکوس دریفت)
+                    // Python: ratio = current / initial -> ما می‌خواهیم به initial برگردیم -> تقسیم بر ratio
+                    decimal factor = effectiveRatio != 0 ? 1.0m / effectiveRatio : 1.0m;
 
                     correctedValues[element] = originalValue.Value * factor;
                     correctionFactors[element] = factor;
