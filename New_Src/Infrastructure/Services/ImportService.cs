@@ -168,13 +168,13 @@ public class ImportService : IImportService
             var preview = new List<Dictionary<string, string>>();
             using var reader = new StreamReader(fileStream, leaveOpen: true);
 
-            for (int i = 0; i < previewRows + 1 && !reader.EndOfStream; i++)
+            int rowsRead = 0;
+            string? line;
+            while (rowsRead < previewRows + 1 && (line = await reader.ReadLineAsync()) != null)
             {
-                var line = await reader.ReadLineAsync();
-                if (line == null) continue;
-
-                if (i == 0 && detection.Format == FileFormat.TabularCsv)
+                if (rowsRead == 0 && detection.Format == FileFormat.TabularCsv)
                 {
+                    rowsRead++;
                     continue; // Skip header for tabular format
                 }
 
@@ -185,6 +185,7 @@ public class ImportService : IImportService
                     row[detection.DetectedColumns[j]] = parts[j].Trim().Trim('"');
                 }
                 preview.Add(row);
+                rowsRead++;
             }
 
             return Result<FilePreviewResult>.Success(new FilePreviewResult(
