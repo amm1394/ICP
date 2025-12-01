@@ -497,32 +497,34 @@ public class DriftCorrectionService : IDriftCorrectionService
     }
 
     private List<CorrectedSampleDto> ApplyStepwiseCorrection(
-        List<ParsedRow> data,
-        List<DriftSegment> segments,
-        List<string> elements,
-        Dictionary<string, ElementDriftInfo> elementDrifts)
+    List<ParsedRow> data,
+    List<DriftSegment> segments,
+    List<string> elements,
+    Dictionary<string, ElementDriftInfo> elementDrifts)
     {
         var result = new List<CorrectedSampleDto>();
-        var currentFactors = elements.ToDictionary(e => e, e => 1.0m);
+
+        // ✅ Python-compatible: Arithmetic progression
+        // Store delta per segment for each element
+        var elementDeltas = new Dictionary<string, decimal>();
+        foreach (var element in elements)
+        {
+            if (elementDrifts.TryGetValue(element, out var driftInfo) && driftInfo.InitialRatio != 0)
+            {
+                var ratio = driftInfo.FinalRatio / driftInfo.InitialRatio;
+                var delta = ratio - 1.0m;
+                elementDeltas[element] = delta / segments.Count; // step_delta
+            }
+            else
+            {
+                elementDeltas[element] = 0m;
+            }
+        }
 
         for (int i = 0; i < data.Count; i++)
         {
             var segment = segments.FirstOrDefault(s => i >= s.StartIndex && i <= s.EndIndex);
             var segmentIndex = segment?.SegmentIndex ?? 0;
-
-            // Update factors at segment boundaries
-            if (segment != null && i == segment.StartIndex && segmentIndex > 0)
-            {
-                foreach (var element in elements)
-                {
-                    if (elementDrifts.TryGetValue(element, out var driftInfo))
-                    {
-                        var segmentDrift = driftInfo.FinalRatio / driftInfo.InitialRatio;
-                        var stepFactor = 1.0m / (decimal)Math.Pow((double)segmentDrift, 1.0 / segments.Count);
-                        currentFactors[element] *= stepFactor;
-                    }
-                }
-            }
 
             var correctedValues = new Dictionary<string, decimal?>();
             var correctionFactors = new Dictionary<string, decimal>();
@@ -530,7 +532,9 @@ public class DriftCorrectionService : IDriftCorrectionService
             foreach (var element in elements)
             {
                 var originalValue = GetElementValue(data[i], element);
-                var factor = currentFactors[element];
+
+                var effectiveRatio = 1.0m + elementDeltas[element] * (segmentIndex + 1);
+                var factor = effectiveRatio != 0 ? 1.0m / effectiveRatio : 1.0m;
 
                 correctedValues[element] = originalValue.HasValue ? originalValue.Value * factor : null;
                 correctionFactors[element] = factor;
