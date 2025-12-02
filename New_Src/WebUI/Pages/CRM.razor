@@ -1,0 +1,467 @@
+@page "/crm"
+@using WebUI.Services
+@inject CrmService CrmService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>ICP - CRM Database</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center">
+            <div>
+                <MudText Typo="Typo.h4" Class="fw-bold">CRM Database</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Manage Certified Reference Materials and their element values
+                </MudText>
+            </div>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenAddDialog">
+                Add CRM
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @* Search & Filter *@
+    <MudPaper Elevation="2" Class="pa-4 mb-4">
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="_searchText"
+                              Label="Search CRM"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true"
+                              OnKeyUp="OnSearchChanged" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudSelect T="string"
+                           Label="Analysis Method"
+                           Variant="Variant.Outlined"
+                           @bind-Value="_selectedMethod"
+                           Clearable="true">
+                    @foreach (var method in _analysisMethods)
+                    {
+                        <MudSelectItem Value="@method">@method</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadCrmData"
+                           Class="mt-1"
+                           Style="height: 56px;">
+                    Refresh
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @* CRM Table *@
+    <MudPaper Elevation="2" Class="pa-4">
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center align-center" style="min-height: 300px;">
+                <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+            </div>
+        }
+        else if (_crmList.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">
+                No CRM records found. Click "Add CRM" to create a new record.
+            </MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@_filteredCrmList"
+                      Hover="true"
+                      Dense="true"
+                      FixedHeader="true"
+                      Height="500px"
+                      SortLabel="Sort By">
+                <HeaderContent>
+                    <MudTh><MudTableSortLabel SortBy="@((CrmListItemDto x) => x.CrmId)">CRM ID</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel SortBy="@((CrmListItemDto x) => x.AnalysisMethod)">Method</MudTableSortLabel></MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Elements</MudTh>
+                    <MudTh Style="width: 150px;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><MudText Class="fw-medium">@context.CrmId</MudText></MudTd>
+                    <MudTd>@context.AnalysisMethod</MudTd>
+                    <MudTd>
+                        @if (context.IsOurOreas)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success">Our Oreas</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small">@context.Type</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach (var el in context.ElementValues.Take(5))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary">@el.Key: @el.Value.ToString("F4")</MudChip>
+                            }
+                            @if (context.ElementValues.Count > 5)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default">+@(context.ElementValues.Count - 5) more</MudChip>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                       Size="Size.Small"
+                                       Color="Color.Info"
+                                       OnClick="@(() => ViewCrm(context))"
+                                       Title="View Details" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Size="Size.Small"
+                                       Color="Color.Primary"
+                                       OnClick="@(() => EditCrm(context))"
+                                       Title="Edit" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Size="Size.Small"
+                                       Color="Color.Error"
+                                       OnClick="@(() => DeleteCrm(context))"
+                                       Title="Delete" />
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" />
+                </PagerContent>
+            </MudTable>
+        }
+    </MudPaper>
+</MudContainer>
+
+@* Add/Edit CRM Dialog *@
+<MudDialog @bind-Visible="_showDialog">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            @(_isEditMode ? "Edit CRM" : "Add New CRM")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_editingCrm.CrmId"
+                              Label="CRM ID"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              Disabled="_isEditMode" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_editingCrm.AnalysisMethod"
+                              Label="Analysis Method"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_editingCrm.Type"
+                              Label="Type"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudCheckBox @bind-Value="_editingCrm.IsOurOreas"
+                             Label="Our Oreas"
+                             Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Element Values</MudText>
+                @foreach (var el in _editingElements)
+                {
+                    <MudGrid Class="mb-2">
+                        <MudItem xs="5">
+                            <MudTextField @bind-Value="el.Name"
+                                          Label="Element"
+                                          Variant="Variant.Outlined"
+                                          Size="Size.Small" />
+                        </MudItem>
+                        <MudItem xs="5">
+                            <MudNumericField @bind-Value="el.Value"
+                                             Label="Value"
+                                             Variant="Variant.Outlined"
+                                             Size="Size.Small"
+                                             Step="0.0001M" />
+                        </MudItem>
+                        <MudItem xs="2" Class="d-flex align-center">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Color="Color.Error"
+                                           Size="Size.Small"
+                                           OnClick="@(() => RemoveElement(el))" />
+                        </MudItem>
+                    </MudGrid>
+                }
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="AddElement"
+                           Size="Size.Small">
+                    Add Element
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="SaveCrm"
+                   Disabled="_isSaving">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+            }
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* View CRM Dialog *@
+<MudDialog @bind-Visible="_showViewDialog">
+    <TitleContent>
+        <MudText Typo="Typo.h6">CRM Details: @_viewingCrm?.CrmId</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_viewingCrm != null)
+        {
+            <MudGrid>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption">CRM ID</MudText>
+                    <MudText Typo="Typo.body1" Class="fw-medium">@_viewingCrm.CrmId</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption">Analysis Method</MudText>
+                    <MudText Typo="Typo.body1">@(_viewingCrm.AnalysisMethod ?? "-")</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption">Type</MudText>
+                    <MudText Typo="Typo.body1">@(_viewingCrm.Type ?? "-")</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption">Our Oreas</MudText>
+                    <MudText Typo="Typo.body1">@(_viewingCrm.IsOurOreas ? "Yes" : "No")</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Element Values</MudText>
+                    <MudSimpleTable Dense="true" Elevation="0">
+                        <thead>
+                            <tr>
+                                <th>Element</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var el in _viewingCrm.ElementValues)
+                            {
+                                <tr>
+                                    <td>@el.Key</td>
+                                    <td>@el.Value.ToString("F4")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showViewDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<CrmListItemDto> _crmList = new();
+    private List<CrmListItemDto> _filteredCrmList = new();
+    private List<string> _analysisMethods = new();
+    private string _searchText = "";
+    private string? _selectedMethod;
+    private bool _isLoading = false;
+    private bool _showDialog = false;
+    private bool _showViewDialog = false;
+    private bool _isEditMode = false;
+    private bool _isSaving = false;
+    private CrmListItemDto _editingCrm = new();
+    private CrmListItemDto? _viewingCrm;
+    private List<ElementValue> _editingElements = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnalysisMethods();
+        await LoadCrmData();
+    }
+
+    private async Task LoadAnalysisMethods()
+    {
+        var result = await CrmService.GetAnalysisMethodsAsync();
+        if (result.Succeeded && result.Data != null)
+        {
+            _analysisMethods = result.Data;
+        }
+    }
+
+    private async Task LoadCrmData()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await CrmService.GetCrmListAsync(
+                analysisMethod: _selectedMethod,
+                search: _searchText);
+
+            if (result.Succeeded && result.Data != null)
+            {
+                _crmList = result.Data.Items;
+                ApplyFilters();
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OnSearchChanged(KeyboardEventArgs e)
+    {
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var filtered = _crmList.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchText))
+        {
+            filtered = filtered.Where(c =>
+                c.CrmId.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_selectedMethod))
+        {
+            filtered = filtered.Where(c => c.AnalysisMethod == _selectedMethod);
+        }
+
+        _filteredCrmList = filtered.ToList();
+    }
+
+    private void OpenAddDialog()
+    {
+        _isEditMode = false;
+        _editingCrm = new CrmListItemDto();
+        _editingElements = new List<ElementValue> { new ElementValue() };
+        _showDialog = true;
+    }
+
+    private void EditCrm(CrmListItemDto crm)
+    {
+        _isEditMode = true;
+        _editingCrm = new CrmListItemDto
+        {
+            Id = crm.Id,
+            CrmId = crm.CrmId,
+            AnalysisMethod = crm.AnalysisMethod,
+            Type = crm.Type,
+            IsOurOreas = crm.IsOurOreas,
+            Elements = new Dictionary<string, decimal>(crm.Elements)
+        };
+        _editingElements = crm.Elements
+            .Select(e => new ElementValue { Name = e.Key, Value = e.Value })
+            .ToList();
+        _showDialog = true;
+    }
+
+    private void ViewCrm(CrmListItemDto crm)
+    {
+        _viewingCrm = crm;
+        _showViewDialog = true;
+    }
+
+    private async Task DeleteCrm(CrmListItemDto crm)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Delete CRM",
+            $"Are you sure you want to delete CRM '{crm.CrmId}'?",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirm == true)
+        {
+            var result = await CrmService.DeleteCrmAsync(crm.Id);
+            if (result.Succeeded)
+            {
+                Snackbar.Add("CRM deleted successfully", Severity.Success);
+                await LoadCrmData();
+            }
+            else
+            {
+                Snackbar.Add(result.Message ?? "Failed to delete CRM", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog()
+    {
+        _showDialog = false;
+    }
+
+    private void AddElement()
+    {
+        _editingElements.Add(new ElementValue());
+    }
+
+    private void RemoveElement(ElementValue el)
+    {
+        _editingElements.Remove(el);
+    }
+
+    private async Task SaveCrm()
+    {
+        if (string.IsNullOrWhiteSpace(_editingCrm.CrmId))
+        {
+            Snackbar.Add("CRM ID is required", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            _editingCrm.Elements = _editingElements
+                .Where(e => !string.IsNullOrWhiteSpace(e.Name))
+                .ToDictionary(e => e.Name, e => e.Value);
+
+            var result = await CrmService.SaveCrmAsync(_editingCrm);
+            if (result.Succeeded)
+            {
+                Snackbar.Add(_isEditMode ? "CRM updated successfully" : "CRM created successfully", Severity.Success);
+                _showDialog = false;
+                await LoadCrmData();
+            }
+            else
+            {
+                Snackbar.Add(result.Message ?? "Failed to save CRM", Severity.Error);
+            }
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    public class ElementValue
+    {
+        public string Name { get; set; } = "";
+        public decimal Value { get; set; }
+    }
+}

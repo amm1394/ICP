@@ -325,4 +325,14 @@ public class AuthService
     /// دریافت Access Token
     /// </summary>
     public string? GetAccessToken() => _accessToken;
+
+    /// <summary>
+    /// دریافت Token (alias برای GetAccessToken)
+    /// </summary>
+    public string? GetToken() => _accessToken;
+
+    /// <summary>
+    /// دریافت نام کاربر فعلی (async)
+    /// </summary>
+    public Task<string?> GetCurrentUserAsync() => Task.FromResult(_currentUser?.Name);
 }

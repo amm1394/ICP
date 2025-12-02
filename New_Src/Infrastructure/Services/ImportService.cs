@@ -168,21 +168,42 @@ public class ImportService : IImportService
             var preview = new List<Dictionary<string, string>>();
             using var reader = new StreamReader(fileStream, leaveOpen: true);
 
+            // Get columns - either from detection or parse from first line
+            var columns = detection.DetectedColumns;
+            var delimiter = detection.DetectedDelimiter ?? ",";
+            
             int rowsRead = 0;
             string? line;
+            
+            // Read first line for headers if not detected
+            if ((columns == null || columns.Count == 0) && (line = await reader.ReadLineAsync()) != null)
+            {
+                columns = line.Split(new[] { delimiter[0] }, StringSplitOptions.None)
+                    .Select(h => h.Trim().Trim('"'))
+                    .ToList();
+                rowsRead++;
+            }
+            else if (detection.Format == FileFormat.TabularCsv)
+            {
+                // Skip header row for tabular format (already have columns from detection)
+                await reader.ReadLineAsync();
+                rowsRead++;
+            }
+            
+            // Ensure we have columns
+            if (columns == null || columns.Count == 0)
+            {
+                return Result<FilePreviewResult>.Fail("Could not detect columns in file");
+            }
+
+            // Read data rows
             while (rowsRead < previewRows + 1 && (line = await reader.ReadLineAsync()) != null)
             {
-                if (rowsRead == 0 && detection.Format == FileFormat.TabularCsv)
-                {
-                    rowsRead++;
-                    continue; // Skip header for tabular format
-                }
-
                 var row = new Dictionary<string, string>();
-                var parts = line.Split(',');
-                for (int j = 0; j < parts.Length && j < detection.DetectedColumns.Count; j++)
+                var parts = line.Split(new[] { delimiter[0] }, StringSplitOptions.None);
+                for (int j = 0; j < parts.Length && j < columns.Count; j++)
                 {
-                    row[detection.DetectedColumns[j]] = parts[j].Trim().Trim('"');
+                    row[columns[j]] = parts[j].Trim().Trim('"');
                 }
                 preview.Add(row);
                 rowsRead++;
@@ -190,9 +211,9 @@ public class ImportService : IImportService
 
             return Result<FilePreviewResult>.Success(new FilePreviewResult(
                 detection.Format,
-                detection.DetectedColumns,
+                columns,
                 preview,
-                0, // Would need to count all rows
+                preview.Count,
                 new List<string>(),
                 detection.Message
             ));

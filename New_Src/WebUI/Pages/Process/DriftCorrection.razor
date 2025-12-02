@@ -1,0 +1,345 @@
+@page "/process/drift"
+@using WebUI.Services
+@inject ProjectService ProjectService
+@inject DriftService DriftService
+@inject PivotService PivotService
+@inject ISnackbar Snackbar
+
+<PageTitle>ICP - Drift Correction</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center">
+            <div>
+                <MudText Typo="Typo.h4" Class="fw-bold">Drift Correction</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Correct instrument drift using Linear or Stepwise methods
+                </MudText>
+            </div>
+            <ProcessNav CurrentStep="drift" />
+        </div>
+    </MudPaper>
+
+    @if (_projectId == null)
+    {
+        <MudAlert Severity="Severity.Warning">
+            Please select a project first.
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @* Settings Panel *@
+            <MudItem xs="12" md="3">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="me-2" />
+                        Settings
+                    </MudText>
+
+                    <MudSelect T="DriftMethod" 
+                               @bind-Value="_method"
+                               Label="Correction Method"
+                               Variant="Variant.Outlined"
+                               Class="mb-4">
+                        <MudSelectItem Value="DriftMethod.Linear">Linear</MudSelectItem>
+                        <MudSelectItem Value="DriftMethod.Stepwise">Stepwise</MudSelectItem>
+                        <MudSelectItem Value="DriftMethod.Polynomial">Polynomial</MudSelectItem>
+                    </MudSelect>
+
+                    <MudSelect T="string"
+                               Label="Elements"
+                               MultiSelection="true"
+                               @bind-SelectedValues="_selectedElements"
+                               Variant="Variant.Outlined"
+                               Class="mb-4">
+                        @foreach (var el in _allElements)
+                        {
+                            <MudSelectItem Value="@el">@el</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudCheckBox @bind-Value="_useSegmentation"
+                                 Label="Use Segmentation"
+                                 Color="Color.Primary"
+                                 Class="mb-4" />
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Info"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Analytics"
+                               OnClick="AnalyzeDrift"
+                               Disabled="_isLoading"
+                               Class="mb-2">
+                        Analyze Drift
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.PlayArrow"
+                               OnClick="ApplyCorrection"
+                               Disabled="@(_isLoading || _analysisResult == null)">
+                        @if (_isApplying)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                        }
+                        Apply Correction
+                    </MudButton>
+                </MudPaper>
+
+                @* Segments Info *@
+                @if (_analysisResult != null && _analysisResult.Segments.Any())
+                {
+                    <MudPaper Elevation="2" Class="pa-4 mt-4">
+                        <MudText Typo="Typo.h6" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Timeline" Class="me-2" />
+                            Segments
+                        </MudText>
+                        <MudList T="DriftSegment" Dense="true">
+                            @foreach (var seg in _analysisResult.Segments)
+                            {
+                                <MudListItem>
+                                    <div class="d-flex justify-space-between">
+                                        <span>Segment @(seg.SegmentIndex + 1)</span>
+                                        <MudChip T="string" Size="Size.Small">@seg.SampleCount samples</MudChip>
+                                    </div>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        @seg.StartStandard → @seg.EndStandard
+                                    </MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudPaper>
+                }
+            </MudItem>
+
+            @* Results Panel *@
+            <MudItem xs="12" md="9">
+                <MudPaper Elevation="2" Class="pa-4">
+                    @if (_isLoading)
+                    {
+                        <div class="d-flex justify-center align-center py-8">
+                            <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+                        </div>
+                    }
+                    else if (_analysisResult == null)
+                    {
+                        <MudAlert Severity="Severity.Info">
+                            Click "Analyze Drift" to detect drift patterns in your data.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        @* Summary Cards *@
+                        <MudGrid Class="mb-4">
+                            <MudItem xs="6" sm="3">
+                                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: var(--mud-palette-info-lighten);">
+                                    <MudText Typo="Typo.h4" Color="Color.Info">@_analysisResult.TotalSamples</MudText>
+                                    <MudText Typo="Typo.caption">Total Samples</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: var(--mud-palette-success-lighten);">
+                                    <MudText Typo="Typo.h4" Color="Color.Success">@_analysisResult.SegmentsFound</MudText>
+                                    <MudText Typo="Typo.caption">Segments</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: var(--mud-palette-warning-lighten);">
+                                    <MudText Typo="Typo.h4" Color="Color.Warning">@_analysisResult.ElementDrifts.Count</MudText>
+                                    <MudText Typo="Typo.caption">Elements Analyzed</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: var(--mud-palette-secondary-lighten);">
+                                    <MudText Typo="Typo.h4" Color="Color.Secondary">@_analysisResult.CorrectedSamples</MudText>
+                                    <MudText Typo="Typo.caption">Corrected</MudText>
+                                </MudPaper>
+                            </MudItem>
+                        </MudGrid>
+
+                        @* Element Drift Table *@
+                        <MudText Typo="Typo.h6" Class="mb-2">Element Drift Analysis</MudText>
+                        <MudTable Items="@_analysisResult.ElementDrifts.Values"
+                                  Hover="true"
+                                  Dense="true"
+                                  FixedHeader="true"
+                                  Height="300px">
+                            <HeaderContent>
+                                <MudTh>Element</MudTh>
+                                <MudTh>Initial Ratio</MudTh>
+                                <MudTh>Final Ratio</MudTh>
+                                <MudTh>Drift %</MudTh>
+                                <MudTh>Slope</MudTh>
+                                <MudTh>Status</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd><MudText Class="fw-medium">@context.Element</MudText></MudTd>
+                                <MudTd>@context.InitialRatio.ToString("F4")</MudTd>
+                                <MudTd>@context.FinalRatio.ToString("F4")</MudTd>
+                                <MudTd>
+                                    <MudChip T="string" 
+                                             Size="Size.Small" 
+                                             Color="@GetDriftColor(context.DriftPercent)">
+                                        @context.DriftPercent.ToString("F2")%
+                                    </MudChip>
+                                </MudTd>
+                                <MudTd>@context.Slope.ToString("F6")</MudTd>
+                                <MudTd>
+                                    @if (Math.Abs(context.DriftPercent) < 2)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                                    }
+                                    else if (Math.Abs(context.DriftPercent) < 5)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Small" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Size="Size.Small" />
+                                    }
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+
+                        @* Corrected Data Preview *@
+                        @if (_analysisResult.CorrectedData.Any())
+                        {
+                            <MudDivider Class="my-4" />
+                            <MudExpansionPanels>
+                                <MudExpansionPanel Text="Corrected Data Preview">
+                                    <MudTable Items="@_analysisResult.CorrectedData.Take(20)"
+                                              Hover="true"
+                                              Dense="true">
+                                        <HeaderContent>
+                                            <MudTh>Sample</MudTh>
+                                            <MudTh>Segment</MudTh>
+                                            <MudTh>Correction Factors</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd>@context.SolutionLabel</MudTd>
+                                            <MudTd>@(context.SegmentIndex + 1)</MudTd>
+                                            <MudTd>
+                                                @foreach (var cf in context.CorrectionFactors.Take(3))
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Class="ma-1">
+                                                        @cf.Key: @cf.Value.ToString("F4")
+                                                    </MudChip>
+                                                }
+                                                @if (context.CorrectionFactors.Count > 3)
+                                                {
+                                                    <MudChip T="string" Size="Size.Small">+@(context.CorrectionFactors.Count - 3)</MudChip>
+                                                }
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </MudExpansionPanel>
+                            </MudExpansionPanels>
+                        }
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public Guid? projectId { get; set; }
+
+    private Guid? _projectId;
+    private DriftMethod _method = DriftMethod.Linear;
+    private IEnumerable<string> _selectedElements = new HashSet<string>();
+    private List<string> _allElements = new();
+    private bool _useSegmentation = true;
+    private DriftCorrectionResult? _analysisResult;
+    private bool _isLoading = false;
+    private bool _isApplying = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _projectId = projectId ?? ProjectService.CurrentProjectId;
+        if (_projectId.HasValue)
+        {
+            await LoadElements();
+        }
+    }
+
+    private async Task LoadElements()
+    {
+        var result = await PivotService.GetElementsAsync(_projectId!.Value);
+        if (result.Succeeded && result.Data != null)
+        {
+            _allElements = result.Data;
+        }
+    }
+
+    private async Task AnalyzeDrift()
+    {
+        if (_projectId == null) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        var request = new DriftCorrectionRequest
+        {
+            ProjectId = _projectId.Value,
+            Method = _method,
+            UseSegmentation = _useSegmentation,
+            SelectedElements = _selectedElements.Any() ? _selectedElements.ToList() : null
+        };
+
+        var result = await DriftService.AnalyzeDriftAsync(request);
+
+        if (result.Succeeded && result.Data != null)
+        {
+            _analysisResult = result.Data;
+            Snackbar.Add($"Analyzed {_analysisResult.ElementDrifts.Count} elements", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Analysis failed", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task ApplyCorrection()
+    {
+        if (_projectId == null) return;
+
+        _isApplying = true;
+        StateHasChanged();
+
+        var request = new DriftCorrectionRequest
+        {
+            ProjectId = _projectId.Value,
+            Method = _method,
+            UseSegmentation = _useSegmentation,
+            SelectedElements = _selectedElements.Any() ? _selectedElements.ToList() : null
+        };
+
+        var result = await DriftService.ApplyDriftCorrectionAsync(request);
+
+        if (result.Succeeded && result.Data != null)
+        {
+            _analysisResult = result.Data;
+            Snackbar.Add($"Corrected {_analysisResult.CorrectedSamples} samples", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Correction failed", Severity.Error);
+        }
+
+        _isApplying = false;
+    }
+
+    private Color GetDriftColor(decimal drift)
+    {
+        var abs = Math.Abs(drift);
+        if (abs < 2) return Color.Success;
+        if (abs < 5) return Color.Warning;
+        return Color.Error;
+    }
+}

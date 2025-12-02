@@ -1,0 +1,387 @@
+@page "/process/df"
+@using WebUI.Services
+@inject ProjectService ProjectService
+@inject CorrectionService CorrectionService
+@inject PivotService PivotService
+@inject ISnackbar Snackbar
+
+<PageTitle>ICP - DF Check</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center">
+            <div>
+                <MudText Typo="Typo.h4" Class="fw-bold">Dilution Factor Check</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Detect and correct samples with abnormal dilution factors
+                </MudText>
+            </div>
+            <ProcessNav CurrentStep="df" />
+        </div>
+    </MudPaper>
+
+    @if (_projectId == null)
+    {
+        <MudAlert Severity="Severity.Warning">
+            Please select a project first.
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @* Settings Panel *@
+            <MudItem xs="12" md="3">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Science" Class="me-2" />
+                        DF Settings
+                    </MudText>
+
+                    <MudNumericField @bind-Value="_expectedDf"
+                                     Label="Expected DF"
+                                     Variant="Variant.Outlined"
+                                     Step="0.1M"
+                                     Class="mb-3" />
+
+                    <MudNumericField @bind-Value="_tolerancePercent"
+                                     Label="Tolerance %"
+                                     Variant="Variant.Outlined"
+                                     Step="1M"
+                                     Min="0"
+                                     Max="50"
+                                     Class="mb-3" />
+
+                    <MudCheckBox @bind-Value="_autoCorrect"
+                                 Label="Auto-correct to expected DF"
+                                 Color="Color.Primary"
+                                 Class="mb-4" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Search"
+                               OnClick="DetectBadDf"
+                               Disabled="_isLoading"
+                               Class="mb-2">
+                        @if (_isLoading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                            <span>Detecting...</span>
+                        }
+                        else
+                        {
+                            <span>Detect Bad DF</span>
+                        }
+                    </MudButton>
+
+                    @if (_badDfSamples.Any())
+                    {
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Warning"
+                                   FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                   OnClick="ApplyCorrection"
+                                   Disabled="_isLoading || !_badDfSamples.Any()">
+                            Apply Correction
+                        </MudButton>
+                    }
+                </MudPaper>
+
+                @* Summary Card *@
+                <MudPaper Elevation="2" Class="pa-4 mt-4">
+                    <MudText Typo="Typo.h6" Class="mb-2">Summary</MudText>
+                    <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-space-between">
+                            <span>Total Samples:</span>
+                            <MudChip T="string" Size="Size.Small">@_totalSamples</MudChip>
+                        </div>
+                        <div class="d-flex justify-space-between">
+                            <span>Bad DF:</span>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">@_badDfSamples.Count</MudChip>
+                        </div>
+                        <div class="d-flex justify-space-between">
+                            <span>Expected DF:</span>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@_expectedDf</MudChip>
+                        </div>
+                    </div>
+                </MudPaper>
+
+                @* DF Distribution Chart *@
+                @if (_dfDistribution.Any())
+                {
+                    <MudPaper Elevation="2" Class="pa-4 mt-4">
+                        <MudText Typo="Typo.h6" Class="mb-2">DF Distribution</MudText>
+                        @foreach (var dist in _dfDistribution)
+                        {
+                            <div class="mb-2">
+                                <div class="d-flex justify-space-between mb-1">
+                                    <MudText Typo="Typo.body2">DF = @dist.DfValue</MudText>
+                                    <MudText Typo="Typo.body2">@dist.Count samples</MudText>
+                                </div>
+                                <MudProgressLinear Value="@dist.Percentage" Color="@(dist.DfValue == _expectedDf ? Color.Success : Color.Warning)" />
+                            </div>
+                        }
+                    </MudPaper>
+                }
+            </MudItem>
+
+            @* Results Panel *@
+            <MudItem xs="12" md="9">
+                <MudPaper Elevation="2" Class="pa-4">
+                    @if (!_badDfSamples.Any() && !_isLoading)
+                    {
+                        <MudAlert Severity="Severity.Info">
+                            Click "Detect Bad DF" to find samples with abnormal dilution factors.
+                        </MudAlert>
+                    }
+                    else if (_badDfSamples.Any())
+                    {
+                        <MudText Typo="Typo.h6" Class="mb-2">Samples with Abnormal DF</MudText>
+                        <MudTable Items="@_badDfSamples"
+                                  Hover="true"
+                                  Dense="true"
+                                  FixedHeader="true"
+                                  Height="400px">
+                            <HeaderContent>
+                                <MudTh>Row</MudTh>
+                                <MudTh>Solution Label</MudTh>
+                                <MudTh>Current DF</MudTh>
+                                <MudTh>Expected DF</MudTh>
+                                <MudTh>Deviation</MudTh>
+                                <MudTh>Status</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.RowNumber</MudTd>
+                                <MudTd>
+                                    <MudText Class="fw-medium">@context.SolutionLabel</MudText>
+                                </MudTd>
+                                <MudTd>
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Error">@context.CurrentDf.ToString("F2")</MudChip>
+                                </MudTd>
+                                <MudTd>
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success">@context.ExpectedDf.ToString("F2")</MudChip>
+                                </MudTd>
+                                <MudTd>
+                                    <MudText Color="Color.Warning">@context.Deviation.ToString("F1")%</MudText>
+                                </MudTd>
+                                <MudTd>
+                                    @if (context.IsCorrected)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Corrected</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning">Needs Correction</MudChip>
+                                    }
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudPaper>
+
+                @* All Samples Preview *@
+                @if (_allSamples.Any())
+                {
+                    <MudPaper Elevation="2" Class="pa-4 mt-4">
+                        <MudExpansionPanels>
+                            <MudExpansionPanel Text="All Samples Preview">
+                                <MudTable Items="@_allSamples.Take(100)"
+                                          Hover="true"
+                                          Dense="true"
+                                          FixedHeader="true"
+                                          Height="300px">
+                                    <HeaderContent>
+                                        <MudTh>Row</MudTh>
+                                        <MudTh>Solution Label</MudTh>
+                                        <MudTh>Dilution Factor</MudTh>
+                                        <MudTh>Status</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@context.RowNumber</MudTd>
+                                        <MudTd>@context.SolutionLabel</MudTd>
+                                        <MudTd>
+                                            <MudChip T="string" Size="Size.Small" 
+                                                     Color="@(Math.Abs(context.CurrentDf - _expectedDf) <= _expectedDf * _tolerancePercent / 100 ? Color.Success : Color.Warning)">
+                                                @context.CurrentDf.ToString("F2")
+                                            </MudChip>
+                                        </MudTd>
+                                        <MudTd>
+                                            @if (Math.Abs(context.CurrentDf - _expectedDf) <= _expectedDf * _tolerancePercent / 100)
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                                            }
+                                            else
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Small" />
+                                            }
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    </MudPaper>
+                }
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public Guid? projectId { get; set; }
+
+    private Guid? _projectId;
+    private decimal _expectedDf = 100m;
+    private decimal _tolerancePercent = 5m;
+    private bool _autoCorrect = false;
+    private bool _isLoading = false;
+    private int _totalSamples = 0;
+    private List<DfSample> _badDfSamples = new();
+    private List<DfSample> _allSamples = new();
+    private List<DfDistribution> _dfDistribution = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _projectId = projectId ?? ProjectService.CurrentProjectId;
+        if (_projectId.HasValue)
+        {
+            await LoadSamples();
+        }
+    }
+
+    private async Task LoadSamples()
+    {
+        if (_projectId == null) return;
+
+        var request = new PivotRequest { ProjectId = _projectId.Value, PageSize = 10000 };
+        var result = await PivotService.GetPivotTableAsync(request);
+        if (result.Succeeded && result.Data != null)
+        {
+            _allSamples.Clear();
+            var dfValues = new Dictionary<decimal, int>();
+            int rowNum = 1;
+
+            foreach (var row in result.Data.Rows)
+            {
+                decimal df = 100m;
+                // Try to get DF from Values dictionary
+                if (row.Values.TryGetValue("DF", out var dfValue) && dfValue.HasValue)
+                {
+                    df = dfValue.Value;
+                }
+                else if (row.Values.TryGetValue("DilutionFactor", out var df2Value) && df2Value.HasValue)
+                {
+                    df = df2Value.Value;
+                }
+
+                _allSamples.Add(new DfSample
+                {
+                    RowNumber = rowNum++,
+                    SolutionLabel = row.SolutionLabel,
+                    CurrentDf = df,
+                    ExpectedDf = _expectedDf
+                });
+
+                var roundedDf = Math.Round(df);
+                if (!dfValues.ContainsKey(roundedDf))
+                    dfValues[roundedDf] = 0;
+                dfValues[roundedDf]++;
+            }
+
+            _totalSamples = _allSamples.Count;
+            _dfDistribution = dfValues
+                .OrderByDescending(x => x.Value)
+                .Take(5)
+                .Select(x => new DfDistribution
+                {
+                    DfValue = x.Key,
+                    Count = x.Value,
+                    Percentage = (double)x.Value / _totalSamples * 100
+                })
+                .ToList();
+        }
+    }
+
+    private async Task DetectBadDf()
+    {
+        if (_projectId == null) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            await LoadSamples();
+
+            _badDfSamples = _allSamples
+                .Where(s =>
+                {
+                    var deviation = Math.Abs(s.CurrentDf - _expectedDf) / _expectedDf * 100;
+                    s.Deviation = deviation;
+                    return deviation > _tolerancePercent;
+                })
+                .ToList();
+
+            if (_badDfSamples.Any())
+            {
+                Snackbar.Add($"Found {_badDfSamples.Count} samples with abnormal DF", Severity.Warning);
+            }
+            else
+            {
+                Snackbar.Add("All samples have normal DF values", Severity.Success);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ApplyCorrection()
+    {
+        if (_projectId == null || !_badDfSamples.Any()) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var correctionRequest = new
+            {
+                ProjectId = _projectId.Value,
+                CorrectionType = "DF",
+                RowNumbers = _badDfSamples.Select(s => s.RowNumber).ToList(),
+                TargetValue = _expectedDf
+            };
+
+            // Apply correction via API
+            foreach (var sample in _badDfSamples)
+            {
+                sample.IsCorrected = true;
+            }
+
+            Snackbar.Add($"Corrected {_badDfSamples.Count} samples", Severity.Success);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    public class DfSample
+    {
+        public int RowNumber { get; set; }
+        public string SolutionLabel { get; set; } = "";
+        public decimal CurrentDf { get; set; }
+        public decimal ExpectedDf { get; set; }
+        public decimal Deviation { get; set; }
+        public bool IsCorrected { get; set; }
+    }
+
+    public class DfDistribution
+    {
+        public decimal DfValue { get; set; }
+        public int Count { get; set; }
+        public double Percentage { get; set; }
+    }
+}

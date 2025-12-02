@@ -1,0 +1,314 @@
+@page "/pivot"
+@using WebUI.Services
+@inject ProjectService ProjectService
+@inject PivotService PivotService
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>ICP - Pivot Table</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    @* Header *@
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center flex-wrap gap-4">
+            <div>
+                <MudText Typo="Typo.h4" Class="fw-bold">Pivot Table</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    @if (_projectName != null)
+                    {
+                        <span>Project: <strong>@_projectName</strong></span>
+                    }
+                    else
+                    {
+                        <span>Select a project to view data</span>
+                    }
+                </MudText>
+            </div>
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.FolderOpen"
+                           OnClick="SelectProject">
+                    Change Project
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Download"
+                           OnClick="ExportData"
+                           Disabled="@(_pivotData == null)">
+                    Export
+                </MudButton>
+            </div>
+        </div>
+    </MudPaper>
+
+    @if (_projectId == null)
+    {
+        <MudAlert Severity="Severity.Info">
+            Please select a project from the <MudLink Href="/projects">Projects</MudLink> page.
+        </MudAlert>
+    }
+    else
+    {
+        @* Filters Panel *@
+        <MudExpansionPanels Class="mb-4">
+            <MudExpansionPanel Text="Filters & Options" IsInitiallyExpanded="true">
+                <MudGrid>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_searchText"
+                                      Label="Search"
+                                      Placeholder="Search in data..."
+                                      Variant="Variant.Outlined"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Immediate="true"
+                                      DebounceInterval="500"
+                                      OnDebounceIntervalElapsed="LoadData" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudSelect T="string" 
+                                   Label="Elements" 
+                                   MultiSelection="true"
+                                   @bind-SelectedValues="_selectedElements"
+                                   Variant="Variant.Outlined"
+                                   Dense="true">
+                            @foreach (var element in _allElements)
+                            {
+                                <MudSelectItem Value="@element">@element</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="6" md="2">
+                        <MudNumericField @bind-Value="_decimalPlaces"
+                                         Label="Decimals"
+                                         Variant="Variant.Outlined"
+                                         Min="0"
+                                         Max="6" />
+                    </MudItem>
+                    <MudItem xs="6" md="2">
+                        <MudCheckBox @bind-Value="_useOxide"
+                                     Label="Use Oxide"
+                                     Color="Color.Primary" />
+                    </MudItem>
+                    <MudItem xs="12" md="1">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   FullWidth="true"
+                                   OnClick="LoadData"
+                                   Disabled="_isLoading">
+                            Apply
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+
+        @* Data Table *@
+        <MudPaper Elevation="2" Class="pa-0">
+            @if (_isLoading)
+            {
+                <div class="d-flex justify-center align-center py-8">
+                    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+                </div>
+            }
+            else if (_pivotData == null || !_pivotData.Rows.Any())
+            {
+                <MudAlert Severity="Severity.Warning" Class="ma-4">
+                    No data found. Try adjusting your filters.
+                </MudAlert>
+            }
+            else
+            {
+                <div style="overflow-x: auto;">
+                    <MudTable Items="@_pivotData.Rows"
+                              Hover="true"
+                              Striped="true"
+                              Dense="true"
+                              FixedHeader="true"
+                              Height="calc(100vh - 400px)"
+                              Loading="_isLoading">
+                        <HeaderContent>
+                            <MudTh Style="position: sticky; left: 0; background: var(--mud-palette-surface); z-index: 1;">
+                                <MudTableSortLabel SortBy="new Func<PivotRowDto, object>(x => x.SolutionLabel)">
+                                    Solution Label
+                                </MudTableSortLabel>
+                            </MudTh>
+                            @foreach (var col in _displayColumns)
+                            {
+                                <MudTh>
+                                    <div class="d-flex flex-column">
+                                        <span>@col</span>
+                                        @if (_pivotData.Metadata?.ColumnStats.TryGetValue(col, out var stats) == true)
+                                        {
+                                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                                μ=@(stats.Mean?.ToString($"F{_decimalPlaces}") ?? "-")
+                                            </MudText>
+                                        }
+                                    </div>
+                                </MudTh>
+                            }
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd Style="position: sticky; left: 0; background: var(--mud-palette-surface); z-index: 1; font-weight: 500;">
+                                @context.SolutionLabel
+                            </MudTd>
+                            @foreach (var col in _displayColumns)
+                            {
+                                <MudTd Style="text-align: right;">
+                                    @if (context.Values.TryGetValue(col, out var val) && val.HasValue)
+                                    {
+                                        @val.Value.ToString($"F{_decimalPlaces}")
+                                    }
+                                    else
+                                    {
+                                        <span class="mud-text-disabled">-</span>
+                                    }
+                                </MudTd>
+                            }
+                        </RowTemplate>
+                        <PagerContent>
+                            <div class="d-flex justify-space-between align-center pa-4">
+                                <MudText Typo="Typo.body2">
+                                    Total: @_pivotData.TotalCount rows | Showing: @_pivotData.Rows.Count
+                                </MudText>
+                                <MudPagination Count="@_totalPages" 
+                                               Selected="_currentPage"
+                                               SelectedChanged="OnPageChanged"
+                                               ShowFirstButton="true"
+                                               ShowLastButton="true" />
+                            </div>
+                        </PagerContent>
+                    </MudTable>
+                </div>
+            }
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public Guid? projectId { get; set; }
+
+    private Guid? _projectId;
+    private string? _projectName;
+    private PivotResultDto? _pivotData;
+    private List<string> _allElements = new();
+    private List<string> _displayColumns = new();
+    private IEnumerable<string> _selectedElements = new HashSet<string>();
+    private string _searchText = "";
+    private int _decimalPlaces = 2;
+    private bool _useOxide = false;
+    private bool _isLoading = false;
+    private int _currentPage = 1;
+    private int _pageSize = 100;
+    private int _totalPages = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _projectId = projectId ?? ProjectService.CurrentProjectId;
+        
+        if (_projectId.HasValue)
+        {
+            var projectResult = await ProjectService.GetProjectAsync(_projectId.Value);
+            if (projectResult.Succeeded && projectResult.Data != null)
+            {
+                _projectName = projectResult.Data.ProjectName;
+                ProjectService.SetCurrentProject(projectResult.Data);
+            }
+
+            await LoadElements();
+            await LoadData();
+        }
+    }
+
+    private async Task LoadElements()
+    {
+        if (_projectId == null) return;
+
+        var result = await PivotService.GetElementsAsync(_projectId.Value);
+        if (result.Succeeded && result.Data != null)
+        {
+            _allElements = result.Data;
+        }
+    }
+
+    private async Task LoadData()
+    {
+        if (_projectId == null) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        var request = new PivotRequest
+        {
+            ProjectId = _projectId.Value,
+            SearchText = string.IsNullOrWhiteSpace(_searchText) ? null : _searchText,
+            SelectedElements = _selectedElements.Any() ? _selectedElements.ToList() : null,
+            UseOxide = _useOxide,
+            DecimalPlaces = _decimalPlaces,
+            Page = _currentPage,
+            PageSize = _pageSize
+        };
+
+        var result = await PivotService.GetPivotTableAsync(request);
+
+        if (result.Succeeded && result.Data != null)
+        {
+            _pivotData = result.Data;
+            _displayColumns = _pivotData.Columns;
+            _totalPages = (int)Math.Ceiling(_pivotData.TotalCount / (double)_pageSize);
+
+            if (_pivotData.Metadata?.AllElements != null && !_allElements.Any())
+            {
+                _allElements = _pivotData.Metadata.AllElements;
+            }
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Failed to load data", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        _currentPage = page;
+        await LoadData();
+    }
+
+    private void SelectProject()
+    {
+        NavManager.NavigateTo("/projects");
+    }
+
+    private async Task ExportData()
+    {
+        if (_projectId == null || _pivotData == null) return;
+
+        var request = new PivotRequest
+        {
+            ProjectId = _projectId.Value,
+            UseOxide = _useOxide,
+            DecimalPlaces = _decimalPlaces
+        };
+
+        var result = await PivotService.ExportToCsvAsync(request);
+        if (result.Succeeded && result.Data != null)
+        {
+            var fileName = $"{_projectName ?? "export"}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            await DownloadFile(result.Data, fileName, "text/csv");
+            Snackbar.Add("Data exported successfully", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Export failed", Severity.Error);
+        }
+    }
+
+    private async Task DownloadFile(byte[] data, string fileName, string contentType)
+    {
+        var base64 = Convert.ToBase64String(data);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64, contentType);
+    }
+}

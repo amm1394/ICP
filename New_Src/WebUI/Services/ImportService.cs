@@ -11,17 +11,20 @@ namespace WebUI.Services;
 
 public class PreviewResult
 {
-    [JsonPropertyName("format")]
-    public string Format { get; set; } = "";
+    [JsonPropertyName("detectedFormat")]
+    public int DetectedFormat { get; set; }
 
     [JsonPropertyName("totalRows")]
     public int TotalRows { get; set; }
 
-    [JsonPropertyName("columns")]
+    [JsonPropertyName("headers")]
     public List<string> Columns { get; set; } = new();
 
-    [JsonPropertyName("sampleRows")]
+    [JsonPropertyName("previewRows")]
     public List<Dictionary<string, object?>> SampleRows { get; set; } = new();
+    
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
 }
 
 public class ImportResult

@@ -36,48 +36,47 @@
                               RequiredError="Project name is required"
                               Class="mb-4" />
 
-                <div class="@uploadZoneClass"
-                     @ondragenter="OnDragEnter"
-                     @ondragleave="OnDragLeave"
-                     @ondragover:preventDefault
-                     @ondrop:preventDefault
-                     @ondrop="OnDrop">
-                    
-                    <InputFile id="fileInput" 
-                               OnChange="OnFileSelected" 
-                               accept=".csv,.xlsx,.xls,.txt"
-                               hidden />
-                    
-                    @if (selectedFile == null)
-                    {
-                        <label for="fileInput" class="upload-label">
-                            <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
-                                     Size="Size.Large" 
-                                     Color="Color.Primary" 
-                                     Class="mb-2" />
-                            <MudText Typo="Typo.h6">Drop file here or click to browse</MudText>
-                            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
-                                Supported formats: CSV, Excel (.xlsx, .xls), TXT
-                            </MudText>
-                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                Maximum file size: 200MB
-                            </MudText>
-                        </label>
-                    }
-                    else
-                    {
-                        <div class="selected-file">
-                            <MudIcon Icon="@fileIcon" Size="Size.Large" Color="Color.Success" />
-                            <div class="file-info">
-                                <MudText Typo="Typo.subtitle1" Class="fw-bold">@selectedFile.Name</MudText>
-                                <MudText Typo="Typo.body2" Class="mud-text-secondary">@fileSize</MudText>
+                <MudFileUpload T="IBrowserFile" 
+                               Accept=".csv,.xlsx,.xls,.txt"
+                               FilesChanged="OnFileSelected"
+                               MaximumFileCount="1"
+                               Class="mb-4">
+                    <ActivatorContent>
+                        <MudPaper Height="200px" 
+                                  Outlined="true" 
+                                  Class="@GetDropZoneClass()">
+                            <div class="d-flex flex-column align-center justify-center" style="height: 100%;">
+                                @if (selectedFile == null)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
+                                             Size="Size.Large" 
+                                             Color="Color.Primary" 
+                                             Class="mb-2" />
+                                    <MudText Typo="Typo.h6">Drop file here or click to browse</MudText>
+                                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
+                                        Supported formats: CSV, Excel (.xlsx, .xls), TXT
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        Maximum file size: 200MB
+                                    </MudText>
+                                }
+                                else
+                                {
+                                    <div class="d-flex align-center gap-3">
+                                        <MudIcon Icon="@fileIcon" Size="Size.Large" Color="Color.Success" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Class="fw-bold">@selectedFile.Name</MudText>
+                                            <MudText Typo="Typo.body2" Class="mud-text-secondary">@fileSize</MudText>
+                                        </div>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Close" 
+                                                       Size="Size.Small"
+                                                       OnClick="ClearFile" />
+                                    </div>
+                                }
                             </div>
-                            <MudIconButton Icon="@Icons.Material.Filled.Close" 
-                                           Size="Size.Small"
-                                           OnClick="ClearFile" />
-                        </div>
-                    }
-                </div>
+                        </MudPaper>
+                    </ActivatorContent>
+                </MudFileUpload>
 
                 <MudExpansionPanels Class="mt-4" Elevation="0">
                     <MudExpansionPanel Text="Advanced Options" IsInitiallyExpanded="false">
@@ -172,7 +171,7 @@
                 else
                 {
                     <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
-                        @previewData.TotalRows rows | @previewData.Columns.Count columns | @previewData.Format
+                        @previewData.SampleRows.Count rows | @previewData.Columns.Count columns
                     </MudAlert>
 
                     <MudText Typo="Typo.subtitle2" Class="mb-2">Detected Columns:</MudText>
@@ -235,7 +234,6 @@
 
 @code {
     private IBrowserFile? selectedFile;
-    private bool isDragOver;
     private string projectName = "";
     private string delimiter = ",";
     private int headerRow = 1;
@@ -245,7 +243,6 @@
     private PreviewResult? previewData;
     private List<RecentImport> recentImports = new();
 
-    private string uploadZoneClass => "upload-zone" + (isDragOver ? " drag-over" : "") + (selectedFile != null ? " has-file" : "");
     private string fileIcon => GetFileIcon();
     private string fileSize => selectedFile != null ? FormatFileSize(selectedFile.Size) : "";
     private bool CanImport => selectedFile != null && !string.IsNullOrWhiteSpace(projectName) && !isLoading;
@@ -253,21 +250,26 @@
     protected override void OnInitialized()
     {
         var user = AuthService.GetCurrentUser();
-        if (user == null || ! user.IsAuthenticated)
+        if (user == null || !user.IsAuthenticated)
         {
             NavManager.NavigateTo("/login");
         }
     }
 
     private void GoToDashboard() => NavManager.NavigateTo("/dashboard");
-    private void OnDragEnter() => isDragOver = true;
-    private void OnDragLeave() => isDragOver = false;
-    private void OnDrop() => isDragOver = false;
-
-    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    
+    private string GetDropZoneClass()
     {
-        selectedFile = e.File;
-        isDragOver = false;
+        return selectedFile != null 
+            ? "d-flex flex-column align-center justify-center border-success" 
+            : "d-flex flex-column align-center justify-center";
+    }
+
+    private async Task OnFileSelected(IBrowserFile file)
+    {
+        if (file == null) return;
+        
+        selectedFile = file;
         
         if (string.IsNullOrWhiteSpace(projectName))
         {

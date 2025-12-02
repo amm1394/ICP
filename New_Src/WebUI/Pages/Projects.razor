@@ -1,0 +1,205 @@
+@page "/projects"
+@using WebUI.Services
+@inject ProjectService ProjectService
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>ICP - Projects</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center flex-wrap gap-4">
+            <div>
+                <MudText Typo="Typo.h4" Class="fw-bold">Projects</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Manage your ICP data projects
+                </MudText>
+            </div>
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="@(() => NavManager.NavigateTo("/import"))">
+                New Project
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    <MudPaper Elevation="2" Class="pa-4">
+        @* Search and Filters *@
+        <div class="d-flex gap-4 mb-4 flex-wrap">
+            <MudTextField @bind-Value="_searchText"
+                          Placeholder="Search projects..."
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="SearchProjects"
+                          Class="flex-grow-1"
+                          Style="max-width: 400px;" />
+            
+            <MudButton Variant="Variant.Outlined"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="LoadProjects"
+                       Disabled="_isLoading">
+                Refresh
+            </MudButton>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center py-8">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else if (_projects == null || !_projects.Any())
+        {
+            <MudAlert Severity="Severity.Info" Class="my-4">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" />
+                    <span>No projects found. <MudLink Href="/import">Import data</MudLink> to create your first project.</span>
+                </div>
+            </MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@_projects" 
+                      Hover="true" 
+                      Striped="true"
+                      Dense="true"
+                      Loading="_isLoading"
+                      LoadingProgressColor="Color.Primary">
+                <HeaderContent>
+                    <MudTh><MudTableSortLabel SortBy="@((ProjectDto x) => x.ProjectName)">Project Name</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel SortBy="@((ProjectDto x) => x.Owner)">Owner</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel SortBy="@((ProjectDto x) => x.RowCount)">Rows</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel SortBy="@((ProjectDto x) => x.CreatedAt)">Created</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel SortBy="@((ProjectDto x) => x.LastModifiedAt)">Modified</MudTableSortLabel></MudTh>
+                    <MudTh Style="width: 150px;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Project Name">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" Color="Color.Primary" />
+                            <MudLink Href="@($"/pivot?projectId={context.ProjectId}")" Typo="Typo.body2">
+                                @context.ProjectName
+                            </MudLink>
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Owner">@(context.Owner ?? "-")</MudTd>
+                    <MudTd DataLabel="Rows">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                            @context.RowCount.ToString("N0")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Created">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
+                    <MudTd DataLabel="Modified">@context.LastModifiedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                            <MudTooltip Text="Open Project">
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" 
+                                               Size="Size.Small"
+                                               Color="Color.Primary"
+                                               OnClick="@(() => OpenProject(context))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Process Data">
+                                <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" 
+                                               Size="Size.Small"
+                                               Color="Color.Secondary"
+                                               OnClick="@(() => ProcessProject(context))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Delete Project">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteProject(context))" />
+                            </MudTooltip>
+                        </MudButtonGroup>
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
+                </PagerContent>
+            </MudTable>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private List<ProjectDto>? _projects;
+    private bool _isLoading = true;
+    private string _searchText = "";
+    private int _currentPage = 1;
+    private int _pageSize = 20;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProjects();
+    }
+
+    private async Task LoadProjects()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        var result = await ProjectService.GetProjectsAsync(_currentPage, _pageSize, _searchText);
+        
+        if (result.Succeeded && result.Data != null)
+        {
+            _projects = result.Data.Items;
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Failed to load projects", Severity.Error);
+            _projects = new List<ProjectDto>();
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task SearchProjects()
+    {
+        _currentPage = 1;
+        await LoadProjects();
+    }
+
+    private void OpenProject(ProjectDto project)
+    {
+        ProjectService.SetCurrentProject(project);
+        NavManager.NavigateTo($"/pivot?projectId={project.ProjectId}");
+    }
+
+    private void ProcessProject(ProjectDto project)
+    {
+        ProjectService.SetCurrentProject(project);
+        NavManager.NavigateTo($"/process/weight?projectId={project.ProjectId}");
+    }
+
+    private async Task DeleteProject(ProjectDto project)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to delete project '{project.ProjectName}'? This action cannot be undone." },
+            { x => x.ButtonText, "Delete" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete Project", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var deleteResult = await ProjectService.DeleteProjectAsync(project.ProjectId);
+            if (deleteResult.Succeeded)
+            {
+                Snackbar.Add($"Project '{project.ProjectName}' deleted", Severity.Success);
+                await LoadProjects();
+            }
+            else
+            {
+                Snackbar.Add(deleteResult.Message ?? "Failed to delete project", Severity.Error);
+            }
+        }
+    }
+}

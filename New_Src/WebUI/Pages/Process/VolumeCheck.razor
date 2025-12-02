@@ -1,0 +1,195 @@
+@page "/process/volume"
+@using WebUI.Services
+@inject ProjectService ProjectService
+@inject CorrectionService CorrectionService
+@inject ISnackbar Snackbar
+
+<PageTitle>ICP - Volume Check</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center">
+            <div>
+                <MudText Typo="Typo.h4" Class="fw-bold">Volume Check</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Find and correct samples with incorrect volumes
+                </MudText>
+            </div>
+            <ProcessNav CurrentStep="volume" />
+        </div>
+    </MudPaper>
+
+    @if (_projectId == null)
+    {
+        <MudAlert Severity="Severity.Warning">
+            Please select a project first. <MudLink Href="/projects">Go to Projects</MudLink>
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="me-2" />
+                        Settings
+                    </MudText>
+
+                    <MudNumericField @bind-Value="_expectedVolume"
+                                     Label="Expected Volume (mL)"
+                                     Variant="Variant.Outlined"
+                                     Step="1M"
+                                     Class="mb-4" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Search"
+                               OnClick="FindBadVolumes"
+                               Disabled="_isLoading">
+                        @if (_isLoading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                        }
+                        Find Bad Volumes
+                    </MudButton>
+
+                    @if (_badSamples != null && _badSamples.Any())
+                    {
+                        <MudDivider Class="my-4" />
+
+                        <MudNumericField @bind-Value="_newVolume"
+                                         Label="New Volume (mL)"
+                                         Variant="Variant.Outlined"
+                                         Step="1M"
+                                         Class="mb-4" />
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Secondary"
+                                   FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Build"
+                                   OnClick="ApplyCorrection"
+                                   Disabled="@(!_selectedSamples.Any() || _isApplying)">
+                            Apply to Selected (@_selectedSamples.Count)
+                        </MudButton>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="8">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Class="me-2" />
+                        Bad Volume Samples
+                        @if (_badSamples != null)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Error" Class="ms-2">
+                                @_badSamples.Count found
+                            </MudChip>
+                        }
+                    </MudText>
+
+                    @if (_badSamples == null)
+                    {
+                        <MudAlert Severity="Severity.Info">
+                            Click "Find Bad Volumes" to search for samples with incorrect volumes.
+                        </MudAlert>
+                    }
+                    else if (!_badSamples.Any())
+                    {
+                        <MudAlert Severity="Severity.Success">
+                            All samples have correct volumes!
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudTable Items="@_badSamples"
+                                  Hover="true"
+                                  Dense="true"
+                                  MultiSelection="true"
+                                  @bind-SelectedItems="_selectedSamples">
+                            <HeaderContent>
+                                <MudTh>Solution Label</MudTh>
+                                <MudTh>Actual Volume</MudTh>
+                                <MudTh>Expected</MudTh>
+                                <MudTh>Deviation</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.SolutionLabel</MudTd>
+                                <MudTd><MudText Color="Color.Error">@context.ActualValue.ToString("F2")</MudText></MudTd>
+                                <MudTd>@context.ExpectedValue.ToString("F2")</MudTd>
+                                <MudTd>
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">
+                                        @context.Deviation.ToString("F1")%
+                                    </MudChip>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public Guid? projectId { get; set; }
+
+    private Guid? _projectId;
+    private decimal _expectedVolume = 10m;
+    private decimal _newVolume = 10m;
+    private List<BadSampleDto>? _badSamples;
+    private HashSet<BadSampleDto> _selectedSamples = new();
+    private bool _isLoading = false;
+    private bool _isApplying = false;
+
+    protected override void OnInitialized()
+    {
+        _projectId = projectId ?? ProjectService.CurrentProjectId;
+    }
+
+    private async Task FindBadVolumes()
+    {
+        if (_projectId == null) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        var result = await CorrectionService.FindBadVolumesAsync(_projectId.Value, _expectedVolume);
+
+        if (result.Succeeded && result.Data != null)
+        {
+            _badSamples = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Failed", Severity.Error);
+            _badSamples = new();
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task ApplyCorrection()
+    {
+        if (_projectId == null || !_selectedSamples.Any()) return;
+
+        _isApplying = true;
+
+        var labels = _selectedSamples.Select(s => s.SolutionLabel).ToList();
+        var result = await CorrectionService.ApplyVolumeCorrectionAsync(_projectId.Value, labels, _newVolume);
+
+        if (result.Succeeded)
+        {
+            Snackbar.Add($"Corrected {result.Data?.CorrectedRows ?? 0} samples", Severity.Success);
+            await FindBadVolumes();
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Failed", Severity.Error);
+        }
+
+        _isApplying = false;
+    }
+}

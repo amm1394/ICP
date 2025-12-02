@@ -1,0 +1,241 @@
+@page "/process/empty"
+@using WebUI.Services
+@inject ProjectService ProjectService
+@inject CorrectionService CorrectionService
+@inject ISnackbar Snackbar
+
+<PageTitle>ICP - Empty Check</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center">
+            <div>
+                <MudText Typo="Typo.h4" Class="fw-bold">Empty Check</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Detect empty or outlier samples where most elements are below average
+                </MudText>
+            </div>
+            <ProcessNav CurrentStep="empty" />
+        </div>
+    </MudPaper>
+
+    @if (_projectId == null)
+    {
+        <MudAlert Severity="Severity.Warning">
+            Please select a project first. <MudLink Href="/projects">Go to Projects</MudLink>
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="me-2" />
+                        Settings
+                    </MudText>
+
+                    <MudSlider @bind-Value="_thresholdPercent"
+                               Min="10"
+                               Max="100"
+                               Step="5"
+                               Color="Color.Primary"
+                               Class="mb-2">
+                        Threshold: @_thresholdPercent%
+                    </MudSlider>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary mb-4">
+                        Samples with values below this % of column average will be flagged
+                    </MudText>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Search"
+                               OnClick="FindEmptyRows"
+                               Disabled="_isLoading">
+                        @if (_isLoading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                        }
+                        Find Empty Rows
+                    </MudButton>
+                </MudPaper>
+
+                @if (_emptyRows != null && _emptyRows.Any())
+                {
+                    <MudPaper Elevation="2" Class="pa-4 mt-4">
+                        <MudText Typo="Typo.h6" Class="mb-2">Summary</MudText>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex justify-space-between">
+                                <MudText>Empty Rows Found:</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error">@_emptyRows.Count</MudChip>
+                            </div>
+                            <MudDivider />
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                These samples should be reviewed and possibly excluded from analysis.
+                            </MudText>
+                        </div>
+                    </MudPaper>
+                }
+            </MudItem>
+
+            <MudItem xs="12" md="8">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.RemoveCircleOutline" Color="Color.Warning" Class="me-2" />
+                        Empty/Outlier Samples
+                    </MudText>
+
+                    @if (_emptyRows == null)
+                    {
+                        <MudAlert Severity="Severity.Info">
+                            Click "Find Empty Rows" to detect samples with unusually low values.
+                        </MudAlert>
+                    }
+                    else if (!_emptyRows.Any())
+                    {
+                        <MudAlert Severity="Severity.Success">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="me-2" />
+                            No empty or outlier samples detected!
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudTable Items="@_emptyRows"
+                                  Hover="true"
+                                  Dense="true"
+                                  FixedHeader="true"
+                                  Height="400px">
+                            <HeaderContent>
+                                <MudTh>Solution Label</MudTh>
+                                <MudTh>Elements Below Threshold</MudTh>
+                                <MudTh>Total Checked</MudTh>
+                                <MudTh>Score</MudTh>
+                                <MudTh>Status</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>
+                                    <MudText Class="fw-medium">@context.SolutionLabel</MudText>
+                                </MudTd>
+                                <MudTd>
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Error">
+                                        @context.ElementsBelowThreshold
+                                    </MudChip>
+                                </MudTd>
+                                <MudTd>@context.TotalElementsChecked</MudTd>
+                                <MudTd>
+                                    <MudProgressLinear Value="@((double)context.OverallScore)" 
+                                                       Color="@GetScoreColor(context.OverallScore)"
+                                                       Size="Size.Small"
+                                                       Style="width: 100px;" />
+                                    <MudText Typo="Typo.caption">@context.OverallScore.ToString("F1")%</MudText>
+                                </MudTd>
+                                <MudTd>
+                                    @if (context.OverallScore < 30)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Error">Empty</MudChip>
+                                    }
+                                    else if (context.OverallScore < 50)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning">Low</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Info">Borderline</MudChip>
+                                    }
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+
+                        <MudExpansionPanels Class="mt-4">
+                            <MudExpansionPanel Text="Element Details">
+                                @if (_selectedEmpty != null)
+                                {
+                                    <MudSimpleTable Dense="true">
+                                        <thead>
+                                            <tr>
+                                                <th>Element</th>
+                                                <th>Value</th>
+                                                <th>Average</th>
+                                                <th>% of Avg</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var element in _selectedEmpty.PercentOfAverage.OrderBy(x => x.Value).Take(10))
+                                            {
+                                                <tr>
+                                                    <td>@element.Key</td>
+                                                    <td>@(_selectedEmpty.ElementValues.TryGetValue(element.Key, out var v) ? v?.ToString("F4") : "-")</td>
+                                                    <td>@(_selectedEmpty.ElementAverages.TryGetValue(element.Key, out var a) ? a.ToString("F4") : "-")</td>
+                                                    <td>
+                                                        <MudText Color="@(element.Value < _thresholdPercent ? Color.Error : Color.Default)">
+                                                            @element.Value.ToString("F1")%
+                                                        </MudText>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </MudSimpleTable>
+                                }
+                                else
+                                {
+                                    <MudText Class="mud-text-secondary">Click on a row to see element details</MudText>
+                                }
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public Guid? projectId { get; set; }
+
+    private Guid? _projectId;
+    private decimal _thresholdPercent = 70m;
+    private List<EmptyRowDto>? _emptyRows;
+    private EmptyRowDto? _selectedEmpty;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        _projectId = projectId ?? ProjectService.CurrentProjectId;
+    }
+
+    private async Task FindEmptyRows()
+    {
+        if (_projectId == null) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        var result = await CorrectionService.FindEmptyRowsAsync(_projectId.Value, _thresholdPercent);
+
+        if (result.Succeeded && result.Data != null)
+        {
+            _emptyRows = result.Data.OrderBy(x => x.OverallScore).ToList();
+            if (_emptyRows.Any())
+            {
+                _selectedEmpty = _emptyRows.First();
+                Snackbar.Add($"Found {_emptyRows.Count} empty/outlier samples", Severity.Warning);
+            }
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Failed", Severity.Error);
+            _emptyRows = new();
+        }
+
+        _isLoading = false;
+    }
+
+    private Color GetScoreColor(decimal score)
+    {
+        if (score < 30) return Color.Error;
+        if (score < 50) return Color.Warning;
+        return Color.Info;
+    }
+}

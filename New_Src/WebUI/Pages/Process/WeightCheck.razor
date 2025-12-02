@@ -1,0 +1,270 @@
+@page "/process/weight"
+@using WebUI.Services
+@inject ProjectService ProjectService
+@inject CorrectionService CorrectionService
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+
+<PageTitle>ICP - Weight Check</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center">
+            <div>
+                <MudText Typo="Typo.h4" Class="fw-bold">Weight Check</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Find and correct samples with abnormal weights
+                </MudText>
+            </div>
+            <ProcessNav CurrentStep="weight" />
+        </div>
+    </MudPaper>
+
+    @if (_projectId == null)
+    {
+        <MudAlert Severity="Severity.Warning">
+            Please select a project first. <MudLink Href="/projects">Go to Projects</MudLink>
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @* Settings Panel *@
+            <MudItem xs="12" md="4">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="me-2" />
+                        Settings
+                    </MudText>
+
+                    <MudNumericField @bind-Value="_weightMin"
+                                     Label="Min Weight (g)"
+                                     Variant="Variant.Outlined"
+                                     Step="0.01M"
+                                     Format="F3"
+                                     Class="mb-4" />
+
+                    <MudNumericField @bind-Value="_weightMax"
+                                     Label="Max Weight (g)"
+                                     Variant="Variant.Outlined"
+                                     Step="0.01M"
+                                     Format="F3"
+                                     Class="mb-4" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Search"
+                               OnClick="FindBadWeights"
+                               Disabled="_isLoading">
+                        @if (_isLoading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                        }
+                        Find Bad Weights
+                    </MudButton>
+
+                    @if (_badSamples != null && _badSamples.Any())
+                    {
+                        <MudDivider Class="my-4" />
+
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Correction</MudText>
+
+                        <MudNumericField @bind-Value="_newWeight"
+                                         Label="New Weight (g)"
+                                         Variant="Variant.Outlined"
+                                         Step="0.01M"
+                                         Format="F3"
+                                         Class="mb-4" />
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Secondary"
+                                   FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Build"
+                                   OnClick="ApplyCorrection"
+                                   Disabled="@(!_selectedSamples.Any() || _isApplying)">
+                            @if (_isApplying)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                            }
+                            Apply to Selected (@_selectedSamples.Count)
+                        </MudButton>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            @* Results Panel *@
+            <MudItem xs="12" md="8">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Class="me-2" />
+                        Bad Weight Samples
+                        @if (_badSamples != null)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Error" Class="ms-2">
+                                @_badSamples.Count found
+                            </MudChip>
+                        }
+                    </MudText>
+
+                    @if (_badSamples == null)
+                    {
+                        <MudAlert Severity="Severity.Info">
+                            Click "Find Bad Weights" to search for samples outside the weight range.
+                        </MudAlert>
+                    }
+                    else if (!_badSamples.Any())
+                    {
+                        <MudAlert Severity="Severity.Success">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="me-2" />
+                            All samples are within the acceptable weight range!
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudTable Items="@_badSamples"
+                                  Hover="true"
+                                  Dense="true"
+                                  MultiSelection="true"
+                                  @bind-SelectedItems="_selectedSamples"
+                                  SelectOnRowClick="true">
+                            <HeaderContent>
+                                <MudTh>Solution Label</MudTh>
+                                <MudTh>Actual Weight</MudTh>
+                                <MudTh>Expected</MudTh>
+                                <MudTh>Deviation</MudTh>
+                                <MudTh>Status</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Solution Label">
+                                    <MudText Typo="Typo.body2" Class="fw-medium">@context.SolutionLabel</MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Actual Weight">
+                                    <MudText Color="Color.Error">@context.ActualValue.ToString("F4")</MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Expected">
+                                    @context.ExpectedValue.ToString("F4")
+                                </MudTd>
+                                <MudTd DataLabel="Deviation">
+                                    <MudChip T="string" 
+                                             Size="Size.Small" 
+                                             Color="@(Math.Abs(context.Deviation) > 20 ? Color.Error : Color.Warning)">
+                                        @context.Deviation.ToString("F1")%
+                                    </MudChip>
+                                </MudTd>
+                                <MudTd DataLabel="Status">
+                                    @if (context.ActualValue < _weightMin)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.ArrowDownward" Color="Color.Error" Size="Size.Small" />
+                                        <span class="mud-text-error">Low</span>
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" Color="Color.Warning" Size="Size.Small" />
+                                        <span class="mud-text-warning">High</span>
+                                    }
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+
+                        <div class="d-flex justify-end mt-4 gap-2">
+                            <MudButton Variant="Variant.Outlined"
+                                       Size="Size.Small"
+                                       OnClick="SelectAll">
+                                Select All
+                            </MudButton>
+                            <MudButton Variant="Variant.Outlined"
+                                       Size="Size.Small"
+                                       OnClick="ClearSelection">
+                                Clear Selection
+                            </MudButton>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery]
+    public Guid? projectId { get; set; }
+
+    private Guid? _projectId;
+    private decimal _weightMin = 0.09m;
+    private decimal _weightMax = 0.11m;
+    private decimal _newWeight = 0.10m;
+    private List<BadSampleDto>? _badSamples;
+    private HashSet<BadSampleDto> _selectedSamples = new();
+    private bool _isLoading = false;
+    private bool _isApplying = false;
+
+    protected override void OnInitialized()
+    {
+        _projectId = projectId ?? ProjectService.CurrentProjectId;
+    }
+
+    private async Task FindBadWeights()
+    {
+        if (_projectId == null) return;
+
+        _isLoading = true;
+        _badSamples = null;
+        _selectedSamples.Clear();
+        StateHasChanged();
+
+        var result = await CorrectionService.FindBadWeightsAsync(_projectId.Value, _weightMin, _weightMax);
+
+        if (result.Succeeded && result.Data != null)
+        {
+            _badSamples = result.Data;
+            if (_badSamples.Any())
+            {
+                Snackbar.Add($"Found {_badSamples.Count} samples with bad weights", Severity.Warning);
+            }
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Failed to check weights", Severity.Error);
+            _badSamples = new List<BadSampleDto>();
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task ApplyCorrection()
+    {
+        if (_projectId == null || !_selectedSamples.Any()) return;
+
+        _isApplying = true;
+        StateHasChanged();
+
+        var labels = _selectedSamples.Select(s => s.SolutionLabel).ToList();
+        var result = await CorrectionService.ApplyWeightCorrectionAsync(_projectId.Value, labels, _newWeight);
+
+        if (result.Succeeded)
+        {
+            Snackbar.Add($"Corrected {result.Data?.CorrectedRows ?? 0} samples", Severity.Success);
+            await FindBadWeights(); // Refresh
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Correction failed", Severity.Error);
+        }
+
+        _isApplying = false;
+    }
+
+    private void SelectAll()
+    {
+        if (_badSamples != null)
+        {
+            _selectedSamples = new HashSet<BadSampleDto>(_badSamples);
+        }
+    }
+
+    private void ClearSelection()
+    {
+        _selectedSamples.Clear();
+    }
+}
