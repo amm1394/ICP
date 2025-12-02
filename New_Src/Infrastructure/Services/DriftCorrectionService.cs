@@ -12,7 +12,10 @@ namespace Infrastructure.Services;
 
 /// <summary>
 /// Implementation of drift correction algorithms
-/// Based on Python RM_check. py logic - Piecewise/Local approach for 100% compatibility
+/// Based on Python RM_check.py logic - Piecewise/Local approach for 100% compatibility
+/// 
+/// CORRECTED: Changed from (1/ratio) to direct (ratio) multiplication to match Python
+/// Python formula: corrected = original * ratio
 /// </summary>
 public class DriftCorrectionService : IDriftCorrectionService
 {
@@ -550,10 +553,13 @@ public class DriftCorrectionService : IDriftCorrectionService
     /// Apply linear correction using piecewise interpolation (Python-compatible)
     /// For each segment, interpolates correction factor linearly between start and end standards
     /// 
+    /// CORRECTED: Changed from (1/effectiveRatio) to direct (effectiveRatio)
+    /// Python formula: corrected = original * effectiveRatio
+    /// 
     /// Python equivalent (RM_check.py):
     ///   progress = (i - start) / (end - start)
-    ///   effective_ratio = 1. 0 + (ratio - 1.0) * progress
-    ///   correction = 1.0 / effective_ratio
+    ///   effective_ratio = 1.0 + (ratio - 1.0) * progress
+    ///   corrected = original * effective_ratio
     /// </summary>
     private List<CorrectedSampleDto> ApplyLinearCorrectionPiecewise(
         List<ParsedRow> data,
@@ -580,7 +586,7 @@ public class DriftCorrectionService : IDriftCorrectionService
                     ratios.TryGetValue(element, out var segmentRatio))
                 {
                     // Python-compatible linear interpolation within segment
-                    decimal factor = 1.0m;
+                    decimal effectiveRatio = 1.0m;
                     var segmentLength = segment.EndIndex - segment.StartIndex;
 
                     if (segmentLength > 0)
@@ -589,16 +595,14 @@ public class DriftCorrectionService : IDriftCorrectionService
                         // progress = (i - start) / (end - start)
                         var progress = (decimal)(i - segment.StartIndex) / segmentLength;
 
-                        // effective_ratio = 1. 0 + (ratio - 1.0) * progress
-                        var effectiveRatio = 1.0m + (segmentRatio - 1.0m) * progress;
-
-                        // correction = 1. 0 / effective_ratio
-                        if (effectiveRatio != 0)
-                            factor = 1.0m / effectiveRatio;
+                        // effective_ratio = 1.0 + (ratio - 1.0) * progress
+                        effectiveRatio = 1.0m + (segmentRatio - 1.0m) * progress;
                     }
 
-                    correctedValues[element] = originalValue.Value * factor;
-                    correctionFactors[element] = factor;
+                    // CORRECTED: Python formula is corrected = original * effectiveRatio (direct multiplication)
+                    // Previously was using 1/effectiveRatio which is wrong
+                    correctedValues[element] = originalValue.Value * effectiveRatio;
+                    correctionFactors[element] = effectiveRatio;
                 }
                 else
                 {
@@ -622,15 +626,16 @@ public class DriftCorrectionService : IDriftCorrectionService
     /// <summary>
     /// Apply stepwise correction using arithmetic progression (Python-compatible)
     /// 
-    /// Python formula (RM_check. py - ApplySingleRMThread):
+    /// CORRECTED: Changed from (1/effectiveRatio) to direct (effectiveRatio)
+    /// 
+    /// Python formula (RM_check.py - calculate_corrected_values):
     ///   delta = ratio - 1.0
     ///   step_delta = delta / n
     ///   effective_ratio = 1.0 + step_delta * (step_index + 1)
+    ///   corrected = original * effective_ratio
     /// 
     /// This is ARITHMETIC progression (linear addition), NOT GEOMETRIC (multiplication)
     /// </summary>
-    // فایل: Infrastructure/Services/DriftCorrectionService.cs
-
     private List<CorrectedSampleDto> ApplyStepwiseCorrectionArithmetic(
         List<ParsedRow> data,
         List<DriftSegment> segments,
@@ -662,6 +667,7 @@ public class DriftCorrectionService : IDriftCorrectionService
                     // delta = ratio - 1.0
                     // step_delta = delta / n (n = تعداد نمونه‌ها در بازه)
                     // effective_ratio = 1.0 + step_delta * (step_index + 1)
+                    // corrected = original * effective_ratio
                     // ============================================================
 
                     decimal delta = ratio - 1.0m;
@@ -677,22 +683,9 @@ public class DriftCorrectionService : IDriftCorrectionService
                     int stepIndex = i - segment.StartIndex;
 
                     // محاسبه ضریب موثر برای این ردیف خاص
-                    // (stepIndex + 1) چون در پایتون لیست از 1 شروع نمی‌شود ولی در فرمول j+1 دارد
-                    // اما چون در پایتون start_idx+1 شروع می‌شود، اینجا هم منطق مشابه است.
-                    // اگر i == StartIndex باشد (خود استاندارد اول)، stepIndex=0 است ولی ما اصلاح را برای بعدش می‌خواهیم.
-                    // معمولاً استانداردها خودشان اصلاح نمی‌شوند یا ضریب 1 می‌گیرند.
-                    // طبق لاجیک پایتون effective_row_ids از start+1 شروع می‌شوند.
+                    decimal effectiveRatio;
 
-                    decimal effectiveRatio = 1.0m + (stepDelta * stepIndex);
-
-                    // نکته دقیق پایتون: 
-                    // اگر دقیقاً روی استاندارد اول باشیم (stepIndex=0)، ضریب باید 1 باشد؟ 
-                    // یا طبق فرمول پایتون (j+1) که j از 0 تا n است؟
-                    // در پایتون: effective_row_ids = row_ids[start_idx + 1:]
-                    // پس اولین نمونه مجهول، j=0 است و ضریب (0+1)*stepDelta می‌گیرد.
-                    // اینجا i شامل خود استاندارد هم می‌شود. 
-                    // اگر i == StartIndex است، معمولاً یعنی خود استاندارد است و نباید دریفت بگیرد (یا دریفت 1).
-
+                    // اگر دقیقاً روی استاندارد اول باشیم (stepIndex=0)، ضریب باید 1 باشد
                     if (i == segment.StartIndex)
                     {
                         effectiveRatio = 1.0m;
@@ -700,15 +693,14 @@ public class DriftCorrectionService : IDriftCorrectionService
                     else
                     {
                         // برای نمونه‌های بعد از استاندارد اول
+                        // Python: effective_ratio = 1.0 + step_delta * step_index
                         effectiveRatio = 1.0m + (stepDelta * stepIndex);
                     }
 
-                    // محاسبه فاکتور نهایی (معکوس دریفت)
-                    // Python: ratio = current / initial -> ما می‌خواهیم به initial برگردیم -> تقسیم بر ratio
-                    decimal factor = effectiveRatio != 0 ? 1.0m / effectiveRatio : 1.0m;
-
-                    correctedValues[element] = originalValue.Value * factor;
-                    correctionFactors[element] = factor;
+                    // CORRECTED: Python formula is corrected = original * effectiveRatio (direct multiplication)
+                    // Previously was using 1/effectiveRatio which is wrong
+                    correctedValues[element] = originalValue.Value * effectiveRatio;
+                    correctionFactors[element] = effectiveRatio;
                 }
                 else
                 {

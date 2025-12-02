@@ -16,8 +16,11 @@ namespace Infrastructure.Services;
 /// Improvements over previous version:
 /// - best1bin strategy (like scipy default)
 /// - Convergence detection with tolerance
-/// - Dithering (variable F between 0. 5-1.0)
+/// - Dithering (variable F between 0.5-1.0)
 /// - Reproducible results with seed parameter
+/// 
+/// CORRECTED: Formula changed from (value + blank) to (value - blank) to match Python
+/// Python formula: corrected = (original - blank) * scale
 /// </summary>
 public class OptimizationService : IOptimizationService
 {
@@ -216,7 +219,7 @@ public class OptimizationService : IOptimizationService
     /// - best1bin strategy (uses best individual for mutation)
     /// - Dithering (F varies between 0.5 and 1.0)
     /// - Convergence detection
-    /// - Similar to scipy.optimize. differential_evolution defaults
+    /// - Similar to scipy.optimize.differential_evolution defaults
     /// </summary>
     private (decimal Blank, decimal Scale, int Passed) OptimizeElementImproved(
         List<MatchedSample> data, string element, decimal minDiff, decimal maxDiff, int maxIterations, int populationSize)
@@ -248,7 +251,7 @@ public class OptimizationService : IOptimizationService
 
             for (int i = 0; i < populationSize; i++)
             {
-                // Dithering: vary F between 0. 5 and 1.0
+                // Dithering: vary F between 0.5 and 1.0
                 double F = 0.5 + _random.NextDouble() * 0.5;
                 double CR = DefaultCR;
 
@@ -328,6 +331,11 @@ public class OptimizationService : IOptimizationService
         return Math.Clamp(value, min, max);
     }
 
+    /// <summary>
+    /// Evaluate fitness using Python-compatible formula
+    /// CORRECTED: Changed from (value + blank) to (value - blank)
+    /// Python: corrected = (original - blank) * scale
+    /// </summary>
     private double EvaluateFitness(List<MatchedSample> data, string element, decimal blank, decimal scale, decimal minDiff, decimal maxDiff)
     {
         int passed = 0;
@@ -338,7 +346,8 @@ public class OptimizationService : IOptimizationService
             if (!sample.CrmValues.TryGetValue(element, out var crmValue) || !crmValue.HasValue || crmValue.Value == 0)
                 continue;
 
-            var correctedValue = (sampleValue.Value + blank) * scale;
+            // CORRECTED: Python formula is (original - blank) * scale
+            var correctedValue = (sampleValue.Value - blank) * scale;
             var diffPercent = ((correctedValue - crmValue.Value) / crmValue.Value) * 100;
 
             if (diffPercent >= minDiff && diffPercent <= maxDiff)
@@ -363,6 +372,9 @@ public class OptimizationService : IOptimizationService
             return delta * (absR - 0.5 * delta);
     }
 
+    /// <summary>
+    /// CORRECTED: Changed from (value + blank) to (value - blank)
+    /// </summary>
     private double ObjectiveB_Huber(List<MatchedSample> data, string element, decimal blank, decimal scale, decimal delta = 1.0m)
     {
         double totalLoss = 0;
@@ -375,7 +387,8 @@ public class OptimizationService : IOptimizationService
             if (!sample.CrmValues.TryGetValue(element, out var crmValue) || !crmValue.HasValue || crmValue.Value == 0)
                 continue;
 
-            var correctedValue = (sampleValue.Value + blank) * scale;
+            // CORRECTED: Python formula is (original - blank) * scale
+            var correctedValue = (sampleValue.Value - blank) * scale;
             var error = (double)((correctedValue - crmValue.Value) / crmValue.Value * 100);
 
             totalLoss += HuberLoss((double)delta, error);
@@ -385,6 +398,9 @@ public class OptimizationService : IOptimizationService
         return count > 0 ? totalLoss / count : double.MaxValue;
     }
 
+    /// <summary>
+    /// CORRECTED: Changed from (value + blank) to (value - blank)
+    /// </summary>
     private double ObjectiveC_SSE(List<MatchedSample> data, string element, decimal blank, decimal scale)
     {
         double totalSSE = 0;
@@ -397,7 +413,8 @@ public class OptimizationService : IOptimizationService
             if (!sample.CrmValues.TryGetValue(element, out var crmValue) || !crmValue.HasValue || crmValue.Value == 0)
                 continue;
 
-            var correctedValue = (sampleValue.Value + blank) * scale;
+            // CORRECTED: Python formula is (original - blank) * scale
+            var correctedValue = (sampleValue.Value - blank) * scale;
             var diffPercent = (double)((correctedValue - crmValue.Value) / crmValue.Value * 100);
             totalSSE += diffPercent * diffPercent;
             count++;
@@ -425,11 +442,11 @@ public class OptimizationService : IOptimizationService
 
         var candidates = new[]
         {
-            (Model: "A", Blank: resultA. Blank, Scale: resultA.Scale, Passed: resultA.Passed,
+            (Model: "A", Blank: resultA.Blank, Scale: resultA.Scale, Passed: resultA.Passed,
              Huber: ObjectiveB_Huber(data, element, resultA.Blank, resultA.Scale),
-             SSE: ObjectiveC_SSE(data, element, resultA. Blank, resultA. Scale)),
-            (Model: "B", Blank: resultB. Blank, Scale: resultB.Scale, Passed: passedB,
-             Huber: ObjectiveB_Huber(data, element, resultB. Blank, resultB. Scale),
+             SSE: ObjectiveC_SSE(data, element, resultA.Blank, resultA.Scale)),
+            (Model: "B", Blank: resultB.Blank, Scale: resultB.Scale, Passed: passedB,
+             Huber: ObjectiveB_Huber(data, element, resultB.Blank, resultB.Scale),
              SSE: ObjectiveC_SSE(data, element, resultB.Blank, resultB.Scale)),
             (Model: "C", Blank: resultC.Blank, Scale: resultC.Scale, Passed: passedC,
              Huber: ObjectiveB_Huber(data, element, resultC.Blank, resultC.Scale),
@@ -599,6 +616,10 @@ public class OptimizationService : IOptimizationService
         return sampleElements.Intersect(crmElements, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    /// <summary>
+    /// CORRECTED: Changed from (value + blank) to (value - blank)
+    /// Python: corrected = (original - blank) * scale
+    /// </summary>
     private (int TotalPassed, Dictionary<string, ElementStats> ElementStats) CalculateStatistics(
         List<MatchedSample> data, List<string> elements, decimal blank, decimal scale, decimal minDiff, decimal maxDiff)
     {
@@ -615,7 +636,8 @@ public class OptimizationService : IOptimizationService
                 if (!sample.SampleValues.TryGetValue(element, out var sv) || !sv.HasValue) continue;
                 if (!sample.CrmValues.TryGetValue(element, out var cv) || !cv.HasValue || cv.Value == 0) continue;
 
-                var corrected = (sv.Value + blank) * scale;
+                // CORRECTED: Python formula is (original - blank) * scale
+                var corrected = (sv.Value - blank) * scale;
                 var diff = ((corrected - cv.Value) / cv.Value) * 100;
                 diffs.Add(diff);
 
@@ -628,6 +650,9 @@ public class OptimizationService : IOptimizationService
         return (totalPassed, elementStats);
     }
 
+    /// <summary>
+    /// CORRECTED: Changed from (value + blank) to (value - blank)
+    /// </summary>
     private decimal CalculateMeanDiff(List<MatchedSample> data, string element, decimal blank, decimal scale)
     {
         var diffs = new List<decimal>();
@@ -636,13 +661,18 @@ public class OptimizationService : IOptimizationService
             if (!sample.SampleValues.TryGetValue(element, out var sv) || !sv.HasValue) continue;
             if (!sample.CrmValues.TryGetValue(element, out var cv) || !cv.HasValue || cv.Value == 0) continue;
 
-            var corrected = (sv.Value + blank) * scale;
+            // CORRECTED: Python formula is (original - blank) * scale
+            var corrected = (sv.Value - blank) * scale;
             var diff = ((corrected - cv.Value) / cv.Value) * 100;
             diffs.Add(diff);
         }
         return diffs.Any() ? diffs.Average() : 0;
     }
 
+    /// <summary>
+    /// CORRECTED: Changed from (value + blank) to (value - blank)
+    /// Python: corrected = (original - blank) * scale
+    /// </summary>
     private List<OptimizedSampleDto> BuildOptimizedData(
         List<MatchedSample> data, List<string> elements, Dictionary<string, decimal> blanks,
         Dictionary<string, decimal> scales, decimal minDiff, decimal maxDiff)
@@ -666,7 +696,8 @@ public class OptimizationService : IOptimizationService
                 var scale = scales.TryGetValue(element, out var s) ? s : 1;
 
                 var original = sv ?? 0;
-                var optimized = (original + blank) * scale;
+                // CORRECTED: Python formula is (original - blank) * scale
+                var optimized = (original - blank) * scale;
                 optimizedValues[element] = optimized;
 
                 var diffB = ((original - cv.Value) / cv.Value) * 100;
