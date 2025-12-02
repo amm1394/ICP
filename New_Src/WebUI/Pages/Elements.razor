@@ -50,7 +50,8 @@
                     }
                     else
                     {
-                        <MudTable Items="@_elements"
+                        <MudTable T="ElementConfig" 
+                                  Items="@_elements"
                                   Hover="true"
                                   Dense="true"
                                   FixedHeader="true"
@@ -65,15 +66,15 @@
                                 <MudTh>Max Range</MudTh>
                                 <MudTh>Active</MudTh>
                             </HeaderContent>
-                            <RowTemplate>
-                                <MudTd>@context.Name</MudTd>
-                                <MudTd><MudChip T="string" Size="Size.Small" Color="Color.Primary">@context.Symbol</MudChip></MudTd>
-                                <MudTd>@context.Unit</MudTd>
-                                <MudTd>@context.OxideFactor.ToString("F4")</MudTd>
-                                <MudTd>@context.MinRange.ToString("F2")</MudTd>
-                                <MudTd>@context.MaxRange.ToString("F2")</MudTd>
+                            <RowTemplate Context="element">
+                                <MudTd>@element.Name</MudTd>
+                                <MudTd><MudChip T="string" Size="Size.Small" Color="Color.Primary">@element.Symbol</MudChip></MudTd>
+                                <MudTd>@element.Unit</MudTd>
+                                <MudTd>@element.OxideFactor.ToString("F4")</MudTd>
+                                <MudTd>@element.MinRange.ToString("F2")</MudTd>
+                                <MudTd>@element.MaxRange.ToString("F2")</MudTd>
                                 <MudTd>
-                                    <MudSwitch T="bool" @bind-Value="context.IsActive"
+                                    <MudSwitch T="bool" @bind-Value="element.IsActive"
                                                Color="Color.Primary" />
                                 </MudTd>
                             </RowTemplate>
@@ -363,7 +364,6 @@
         }
 
         // Parse oxide formula and calculate molecular mass
-        decimal oxideMass = 0;
         // Simple parsing - this is a simplified version
         var oxide = _commonOxides.FirstOrDefault(o => o.Oxide.Equals(_calcOxide, StringComparison.OrdinalIgnoreCase));
         if (oxide != null)

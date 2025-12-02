@@ -320,7 +320,8 @@
             // Parse and apply settings
         }
 
-        _currentUser = await AuthService.GetCurrentUserAsync() ?? "Unknown";
+        var user = AuthService.GetCurrentUser();
+        _currentUser = user?.Name ?? "Unknown";
     }
 
     private async Task SaveSettings()

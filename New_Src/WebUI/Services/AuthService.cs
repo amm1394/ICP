@@ -37,20 +37,47 @@ public class RegisterRequest
 
 public class ApiLoginResponse
 {
-    [JsonPropertyName("isAuthenticated")]
-    public bool IsAuthenticated { get; set; }
+    [JsonPropertyName("succeeded")]
+    public bool Succeeded { get; set; }
 
-    [JsonPropertyName("message")]
-    public string Message { get; set; } = "";
+    [JsonPropertyName("accessToken")]
+    public string AccessToken { get; set; } = "";
 
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = "";
+    [JsonPropertyName("refreshToken")]
+    public string RefreshToken { get; set; } = "";
 
-    [JsonPropertyName("token")]
-    public string Token { get; set; } = "";
+    [JsonPropertyName("expiresAt")]
+    public DateTime? ExpiresAt { get; set; }
 
-    [JsonPropertyName("position")]
-    public string Position { get; set; } = "";
+    [JsonPropertyName("user")]
+    public ApiUserInfo? User { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+public class ApiUserInfo
+{
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = "";
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = "";
+
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = "";
+
+    [JsonPropertyName("firstName")]
+    public string FirstName { get; set; } = "";
+
+    [JsonPropertyName("lastName")]
+    public string LastName { get; set; } = "";
+
+    [JsonPropertyName("role")]
+    public string Role { get; set; } = "";
+
+    [JsonPropertyName("isActive")]
+    public bool IsActive { get; set; }
 }
 
 public class ApiRegisterResponse
@@ -127,25 +154,30 @@ public class AuthService
                 return new AuthResult(false, "Invalid server response");
             }
 
-            if (loginResponse.IsAuthenticated && !string.IsNullOrEmpty(loginResponse.Token))
+            if (loginResponse.Succeeded && !string.IsNullOrEmpty(loginResponse.AccessToken))
             {
+                var fullName = loginResponse.User != null 
+                    ? $"{loginResponse.User.FirstName} {loginResponse.User.LastName}".Trim()
+                    : username;
+                var role = loginResponse.User?.Role ?? "User";
+
                 _currentUser = new AuthResult(
                     IsAuthenticated: true,
-                    Message: loginResponse.Message,
-                    Name: string.IsNullOrWhiteSpace(loginResponse.Name) ? username : loginResponse.Name,
-                    Token: loginResponse.Token,
-                    Position: string.IsNullOrWhiteSpace(loginResponse.Position) ? "User" : loginResponse.Position
+                    Message: "Login successful",
+                    Name: string.IsNullOrWhiteSpace(fullName) ? username : fullName,
+                    Token: loginResponse.AccessToken,
+                    Position: role
                 );
 
                 // set bearer token for subsequent calls
                 _httpClient.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", loginResponse.Token);
+                    new AuthenticationHeaderValue("Bearer", loginResponse.AccessToken);
 
                 _logger.LogInformation("User {Username} logged in successfully", username);
                 return _currentUser;
             }
 
-            var errorMessage = loginResponse.Message ?? "Invalid username or password";
+            var errorMessage = loginResponse.Error ?? "Invalid username or password";
             _logger.LogWarning("Login failed for {Username}: {Error}", username, errorMessage);
             return new AuthResult(false, errorMessage);
         }
@@ -288,12 +320,7 @@ public class AuthService
     public AuthResult? GetCurrentUser() => _currentUser;
 
     /// <summary>
-    /// دریافت اطلاعات کامل کاربر
-    /// </summary>
-    public UserDto? GetUserInfo() => _userInfo;
-
-    /// <summary>
     /// دریافت Access Token
     /// </summary>
-    public string? GetAccessToken() => _accessToken;
+    public string? GetAccessToken() => _currentUser?.Token;
 }

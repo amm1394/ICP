@@ -121,17 +121,17 @@
                                        Size="Size.Small"
                                        Color="Color.Info"
                                        OnClick="@(() => ViewCrm(context))"
-                                       Title="View Details" />
+                                       aria-label="View Details" />
                         <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                        Size="Size.Small"
                                        Color="Color.Primary"
                                        OnClick="@(() => EditCrm(context))"
-                                       Title="Edit" />
+                                       aria-label="Edit" />
                         <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                        Size="Size.Small"
                                        Color="Color.Error"
                                        OnClick="@(() => DeleteCrm(context))"
-                                       Title="Delete" />
+                                       aria-label="Delete" />
                     </MudTd>
                 </RowTemplate>
                 <PagerContent>
@@ -182,13 +182,13 @@
                             <MudTextField @bind-Value="el.Name"
                                           Label="Element"
                                           Variant="Variant.Outlined"
-                                          Size="Size.Small" />
+                                          Margin="Margin.Dense" />
                         </MudItem>
                         <MudItem xs="5">
                             <MudNumericField @bind-Value="el.Value"
                                              Label="Value"
                                              Variant="Variant.Outlined"
-                                             Size="Size.Small"
+                                             Margin="Margin.Dense"
                                              Step="0.0001M" />
                         </MudItem>
                         <MudItem xs="2" Class="d-flex align-center">

@@ -284,7 +284,7 @@ public class CrmService
 
     private void SetAuthHeader()
     {
-        var token = _authService.GetToken();
+        var token = _authService.GetAccessToken();
         if (!string.IsNullOrEmpty(token))
         {
             _httpClient.DefaultRequestHeaders.Authorization =
