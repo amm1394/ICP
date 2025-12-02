@@ -1,186 +1,73 @@
 ﻿@page "/dashboard"
 @using WebUI.Services
 @inject AuthService AuthService
-@inject ProjectService ProjectService
 @inject NavigationManager NavManager
 @inject ISnackbar Snackbar
 
 <PageTitle>ICP - Dashboard</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
-        <MudText Typo="Typo.h4" Class="fw-bold">
-            👋 Welcome back, @userName!
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudPaper Elevation="2" Class="pa-6">
+        <MudText Typo="Typo.h4" Class="mb-4">
+            👋 Welcome, @userName!
         </MudText>
-        <MudText Typo="Typo.body2" Class="mud-text-secondary">
-            @userPosition | @DateTime.Now.ToString("dddd, MMMM dd, yyyy")
+        
+        <MudText Typo="Typo.body1" Class="mb-6 mud-text-secondary">
+            Position: @userPosition
         </MudText>
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.h6" Class="mb-4">Quick Actions</MudText>
+        
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="pa-4 cursor-pointer" @onclick="@(() => NavManager.NavigateTo("/import"))">
+                    <MudCardContent Class="text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Import Data</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Upload CSV/Excel files</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="pa-4 cursor-pointer" @onclick="@(() => NavManager. NavigateTo("/pivot"))">
+                    <MudCardContent Class="text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.TableChart" Size="Size. Large" Color="Color.Secondary" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Pivot Data</MudText>
+                        <MudText Typo="Typo. body2" Class="mud-text-secondary">View and transform data</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="pa-4 cursor-pointer" @onclick="@(() => NavManager.NavigateTo("/process"))">
+                    <MudCardContent Class="text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Science" Size="Size.Large" Color="Color.Tertiary" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Process</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Weight, Volume, Drift corrections</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-6" />
+
+        <MudButton Variant="Variant.Outlined" 
+                   Color="Color.Error" 
+                   StartIcon="@Icons.Material.Filled.Logout"
+                   OnClick="HandleLogout">
+            Logout
+        </MudButton>
     </MudPaper>
-
-    @* Statistics Cards *@
-    <MudGrid Class="mb-4">
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="2" Class="pa-4">
-                <div class="d-flex justify-space-between align-center">
-                    <div>
-                        <MudText Typo="Typo.h4" Class="fw-bold" Color="Color.Primary">@_projectCount</MudText>
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Total Projects</MudText>
-                    </div>
-                    <MudAvatar Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Large">
-                        <MudIcon Icon="@Icons.Material.Filled.Folder" />
-                    </MudAvatar>
-                </div>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="2" Class="pa-4">
-                <div class="d-flex justify-space-between align-center">
-                    <div>
-                        <MudText Typo="Typo.h4" Class="fw-bold" Color="Color.Success">@_samplesAnalyzed</MudText>
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Samples Analyzed</MudText>
-                    </div>
-                    <MudAvatar Color="Color.Success" Variant="Variant.Outlined" Size="Size.Large">
-                        <MudIcon Icon="@Icons.Material.Filled.Science" />
-                    </MudAvatar>
-                </div>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="2" Class="pa-4">
-                <div class="d-flex justify-space-between align-center">
-                    <div>
-                        <MudText Typo="Typo.h4" Class="fw-bold" Color="Color.Warning">@_crmCount</MudText>
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary">CRM Standards</MudText>
-                    </div>
-                    <MudAvatar Color="Color.Warning" Variant="Variant.Outlined" Size="Size.Large">
-                        <MudIcon Icon="@Icons.Material.Filled.Verified" />
-                    </MudAvatar>
-                </div>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Elevation="2" Class="pa-4">
-                <div class="d-flex justify-space-between align-center">
-                    <div>
-                        <MudText Typo="Typo.h4" Class="fw-bold" Color="Color.Info">@_passRate%</MudText>
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Pass Rate</MudText>
-                    </div>
-                    <MudAvatar Color="Color.Info" Variant="Variant.Outlined" Size="Size.Large">
-                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
-                    </MudAvatar>
-                </div>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
-
-    <MudGrid>
-        @* Quick Actions *@
-        <MudItem xs="12" md="8">
-            <MudPaper Elevation="2" Class="pa-4">
-                <MudText Typo="Typo.h6" Class="mb-4">
-                    <MudIcon Icon="@Icons.Material.Filled.Bolt" Class="me-2" />
-                    Quick Actions
-                </MudText>
-                <MudGrid>
-                    <MudItem xs="6" sm="4">
-                        <MudCard Elevation="1" Class="cursor-pointer hover-elevation-4" @onclick="@(() => NavManager.NavigateTo("/import"))">
-                            <MudCardContent Class="text-center pa-4">
-                                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
-                                <MudText Typo="Typo.subtitle2" Class="mt-2">Import Data</MudText>
-                            </MudCardContent>
-                        </MudCard>
-                    </MudItem>
-                    <MudItem xs="6" sm="4">
-                        <MudCard Elevation="1" Class="cursor-pointer hover-elevation-4" @onclick="@(() => NavManager.NavigateTo("/projects"))">
-                            <MudCardContent Class="text-center pa-4">
-                                <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Large" Color="Color.Secondary" />
-                                <MudText Typo="Typo.subtitle2" Class="mt-2">Projects</MudText>
-                            </MudCardContent>
-                        </MudCard>
-                    </MudItem>
-                    <MudItem xs="6" sm="4">
-                        <MudCard Elevation="1" Class="cursor-pointer hover-elevation-4" @onclick="@(() => NavManager.NavigateTo("/pivot"))">
-                            <MudCardContent Class="text-center pa-4">
-                                <MudIcon Icon="@Icons.Material.Filled.TableChart" Size="Size.Large" Color="Color.Tertiary" />
-                                <MudText Typo="Typo.subtitle2" Class="mt-2">Pivot Table</MudText>
-                            </MudCardContent>
-                        </MudCard>
-                    </MudItem>
-                    <MudItem xs="6" sm="4">
-                        <MudCard Elevation="1" Class="cursor-pointer hover-elevation-4" @onclick="@(() => NavManager.NavigateTo("/process/weight"))">
-                            <MudCardContent Class="text-center pa-4">
-                                <MudIcon Icon="@Icons.Material.Filled.Engineering" Size="Size.Large" Color="Color.Warning" />
-                                <MudText Typo="Typo.subtitle2" Class="mt-2">Process</MudText>
-                            </MudCardContent>
-                        </MudCard>
-                    </MudItem>
-                    <MudItem xs="6" sm="4">
-                        <MudCard Elevation="1" Class="cursor-pointer hover-elevation-4" @onclick="@(() => NavManager.NavigateTo("/crm"))">
-                            <MudCardContent Class="text-center pa-4">
-                                <MudIcon Icon="@Icons.Material.Filled.FactCheck" Size="Size.Large" Color="Color.Success" />
-                                <MudText Typo="Typo.subtitle2" Class="mt-2">CRM Database</MudText>
-                            </MudCardContent>
-                        </MudCard>
-                    </MudItem>
-                    <MudItem xs="6" sm="4">
-                        <MudCard Elevation="1" Class="cursor-pointer hover-elevation-4" @onclick="@(() => NavManager.NavigateTo("/report"))">
-                            <MudCardContent Class="text-center pa-4">
-                                <MudIcon Icon="@Icons.Material.Filled.Assessment" Size="Size.Large" Color="Color.Info" />
-                                <MudText Typo="Typo.subtitle2" Class="mt-2">Reports</MudText>
-                            </MudCardContent>
-                        </MudCard>
-                    </MudItem>
-                </MudGrid>
-            </MudPaper>
-        </MudItem>
-
-        @* Recent Projects *@
-        <MudItem xs="12" md="4">
-            <MudPaper Elevation="2" Class="pa-4">
-                <MudText Typo="Typo.h6" Class="mb-4">
-                    <MudIcon Icon="@Icons.Material.Filled.History" Class="me-2" />
-                    Recent Projects
-                </MudText>
-                @if (_recentProjects.Any())
-                {
-                    <MudList T="ProjectItem" Dense="true" Clickable="true">
-                        @foreach (var project in _recentProjects)
-                        {
-                            <MudListItem OnClick="@(() => OpenProject(project.Id))">
-                                <div class="d-flex justify-space-between align-center w-100">
-                                    <div>
-                                        <MudText Typo="Typo.body2" Class="fw-medium">@project.Name</MudText>
-                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@project.LastAccessed.ToString("MMM dd")</MudText>
-                                    </div>
-                                    <MudChip T="string" Size="Size.Small" Color="Color.Primary">@project.SampleCount</MudChip>
-                                </div>
-                            </MudListItem>
-                        }
-                    </MudList>
-                }
-                else
-                {
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary">No recent projects</MudText>
-                }
-                <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth="true" Class="mt-2"
-                           Href="/projects">
-                    View All Projects
-                </MudButton>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
 </MudContainer>
 
 @code {
     private string userName = "User";
     private string userPosition = "User";
-    private int _projectCount = 0;
-    private int _samplesAnalyzed = 0;
-    private int _crmCount = 0;
-    private int _passRate = 0;
-    private List<ProjectItem> _recentProjects = new();
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         var user = AuthService.GetCurrentUser();
         if (user == null || !user.IsAuthenticated)
@@ -189,48 +76,32 @@
             return;
         }
 
-        userName = user.Name;
+        userName = user. Name;
         userPosition = user.Position;
-
-        await LoadDashboardData();
     }
 
-    private async Task LoadDashboardData()
+    private async Task HandleLogout()
     {
-        // Load stats from API
-        var projects = await ProjectService.GetProjectsAsync();
-        if (projects.Succeeded && projects.Data != null)
-        {
-            _projectCount = projects.Data.Count;
-            _samplesAnalyzed = projects.Data.Sum(p => p.SampleCount);
-            _recentProjects = projects.Data
-                .OrderByDescending(p => p.LastAccessed)
-                .Take(5)
-                .Select(p => new ProjectItem
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    SampleCount = p.SampleCount,
-                    LastAccessed = p.LastAccessed
-                })
-                .ToList();
-        }
-
-        _crmCount = 25; // From CRM service
-        _passRate = 92; // Calculate from results
+        await AuthService.LogoutAsync();
+        Snackbar.Add("Logged out successfully", Severity.Info);
+        NavManager.NavigateTo("/login");
     }
 
-    private void OpenProject(Guid projectId)
+    private Color StatusColor(int state) => state switch
     {
-        ProjectService.SetCurrentProject(projectId);
-        NavManager.NavigateTo($"/pivot?projectId={projectId}");
-    }
+        0 => Color.Default,
+        1 => Color.Info,
+        2 => Color.Success,
+        3 => Color.Error,
+        _ => Color.Secondary
+    };
 
-    public class ProjectItem
+    private string StatusLabel(int state) => state switch
     {
-        public Guid Id { get; set; }
-        public string Name { get; set; } = "";
-        public int SampleCount { get; set; }
-        public DateTime LastAccessed { get; set; }
-    }
+        0 => "Pending",
+        1 => "Processing",
+        2 => "Completed",
+        3 => "Failed",
+        _ => "Queued"
+    };
 }
