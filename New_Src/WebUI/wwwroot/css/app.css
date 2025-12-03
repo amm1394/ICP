@@ -8,20 +8,35 @@
     --primary-color: #004a88;
     --secondary-color: #1c6397;
     --accent-color: #4cc2e6;
-    /* Text Colors */
+    /* Text Colors dark*/
     --text-primary: #2c3e50;
     --text-secondary: #64748b;
     --text-muted: #94a3b8;
-    /* Background */
+    /* Text Colors dark*/
+    --text-dark: #2c3e50;
+    --text-gray: #64748b;
+    --text-gray-light: #94a3b8;
+    /*Text Colors Light*/
+    --text-Light: #FAFCFF;
+    --text-white: #FFFFFF;
+    /* Background Light*/
     --bg-primary: #ffffff;
     --bg-secondary: #f8fafc;
     --bg-surface: #f6f8fb;
-    --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    /* Background Gradient*/
+    --bg-gradient-blue: linear-gradient(340deg,rgba(28, 99, 151, 1) 13%, rgba(76, 194, 230, 1) 97%);
+    --bg-gradient-light: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    --bg-gradient-dark: linear-gradient(135deg,rgba(15, 7, 54, 1) 0%, rgba(82, 82, 84, 1) 100%);
+    /*button background*/
+    --bg-blue: #3696c2;
     /* Border Radius */
+
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
     --radius-xl: 20px;
+    /* Border Radius */
+
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0. 05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0. 1);
