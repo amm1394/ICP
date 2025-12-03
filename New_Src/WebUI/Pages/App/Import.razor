@@ -46,7 +46,7 @@
                                   Outlined="true" 
                                   Class="@GetDropZoneClass()">
                             <div class="d-flex flex-column align-center justify-center" style="height: 100%;">
-                                @if (selectedFile == null)
+                                @if (fileContent == null)
                                 {
                                     <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
                                              Size="Size.Large" 
@@ -65,7 +65,7 @@
                                     <div class="d-flex align-center gap-3">
                                         <MudIcon Icon="@fileIcon" Size="Size.Large" Color="Color.Success" />
                                         <div>
-                                            <MudText Typo="Typo.subtitle1" Class="fw-bold">@selectedFile.Name</MudText>
+                                            <MudText Typo="Typo.subtitle1" Class="fw-bold">@fileName</MudText>
                                             <MudText Typo="Typo.body2" Class="mud-text-secondary">@fileSize</MudText>
                                         </div>
                                         <MudIconButton Icon="@Icons.Material.Filled.Close" 
@@ -119,7 +119,7 @@
                                Color="Color.Primary"
                                StartIcon="@Icons.Material.Filled.Preview"
                                OnClick="PreviewFile"
-                               Disabled="@(selectedFile == null || isLoading)">
+                               Disabled="@(fileContent == null || isLoading)">
                         Preview
                     </MudButton>
                     
@@ -234,6 +234,11 @@
 
 @code {
     private IBrowserFile? selectedFile;
+    private byte[]? fileContent; // Store file content for reuse
+    private string fileName = "";
+    private string fileContentType = "";
+    private long fileSizeBytes;
+    
     private string projectName = "";
     private string delimiter = ",";
     private int headerRow = 1;
@@ -244,8 +249,8 @@
     private List<RecentImport> recentImports = new();
 
     private string fileIcon => GetFileIcon();
-    private string fileSize => selectedFile != null ? FormatFileSize(selectedFile.Size) : "";
-    private bool CanImport => selectedFile != null && !string.IsNullOrWhiteSpace(projectName) && !isLoading;
+    private string fileSize => fileSizeBytes > 0 ? FormatFileSize(fileSizeBytes) : "";
+    private bool CanImport => fileContent != null && !string.IsNullOrWhiteSpace(projectName) && !isLoading;
 
     protected override void OnInitialized()
     {
@@ -260,7 +265,7 @@
     
     private string GetDropZoneClass()
     {
-        return selectedFile != null 
+        return fileContent != null 
             ? "d-flex flex-column align-center justify-center border-success" 
             : "d-flex flex-column align-center justify-center";
     }
@@ -269,32 +274,63 @@
     {
         if (file == null) return;
         
-        selectedFile = file;
+        isLoading = true;
+        StateHasChanged();
         
-        if (string.IsNullOrWhiteSpace(projectName))
+        try
         {
-            projectName = Path.GetFileNameWithoutExtension(selectedFile.Name);
+            // Store file info
+            selectedFile = file;
+            fileName = file.Name;
+            fileContentType = file.ContentType ?? "application/octet-stream";
+            fileSizeBytes = file.Size;
+            
+            // Read and store file content (max 200MB)
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 200 * 1024 * 1024).CopyToAsync(ms);
+            fileContent = ms.ToArray();
+            
+            if (string.IsNullOrWhiteSpace(projectName))
+            {
+                projectName = Path.GetFileNameWithoutExtension(fileName);
+            }
+            
+            // Auto-preview
+            await DoPreview();
         }
-        
-        await PreviewFile();
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error reading file: {ex.Message}", Severity.Error);
+            ClearFile();
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private void ClearFile()
     {
         selectedFile = null;
+        fileContent = null;
+        fileName = "";
+        fileContentType = "";
+        fileSizeBytes = 0;
         previewData = null;
     }
 
     private async Task PreviewFile()
     {
-        if (selectedFile == null) return;
+        await DoPreview();
+    }
 
-        isLoading = true;
-        StateHasChanged();
+    private async Task DoPreview()
+    {
+        if (fileContent == null || fileContent.Length == 0) return;
 
         try
         {
-            var result = await ImportService.PreviewFileAsync(selectedFile, 10);
+            var result = await ImportService.PreviewFileAsync(fileContent, fileName, fileContentType, 10);
             
             if (result.Succeeded && result.Data != null)
             {
@@ -303,22 +339,18 @@
             }
             else
             {
-                Snackbar.Add(result.Message ??  "Preview failed", Severity.Error);
+                Snackbar.Add(result.Message ?? "Preview failed", Severity.Error);
             }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error: {ex.Message}", Severity.Error);
         }
-        finally
-        {
-            isLoading = false;
-        }
     }
 
     private async Task ImportFile()
     {
-        if (selectedFile == null || string.IsNullOrWhiteSpace(projectName)) return;
+        if (fileContent == null || string.IsNullOrWhiteSpace(projectName)) return;
 
         isLoading = true;
         StateHasChanged();
@@ -327,7 +359,8 @@
         {
             var user = AuthService.GetCurrentUser();
             var result = await ImportService.ImportAdvancedAsync(
-                selectedFile, projectName, user?.Name,
+                fileContent, fileName, fileContentType,
+                projectName, user?.Name,
                 delimiter, headerRow, skipLastRow, autoDetectType);
 
             if (result.Succeeded)
@@ -355,8 +388,8 @@
 
     private string GetFileIcon()
     {
-        if (selectedFile == null) return Icons.Material.Filled.InsertDriveFile;
-        var ext = Path.GetExtension(selectedFile.Name).ToLower();
+        if (string.IsNullOrEmpty(fileName)) return Icons.Material.Filled.InsertDriveFile;
+        var ext = Path.GetExtension(fileName).ToLower();
         return ext switch
         {
             ".csv" => Icons.Material.Filled.TableChart,

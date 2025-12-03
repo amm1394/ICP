@@ -7,6 +7,28 @@ namespace WebUI.Services;
 // Project DTOs
 // ============================================
 
+// DTO matching API ProjectListItemDto
+public class ProjectListItemDto
+{
+    [JsonPropertyName("projectId")]
+    public Guid ProjectId { get; set; }
+
+    [JsonPropertyName("projectName")]
+    public string ProjectName { get; set; } = "";
+
+    [JsonPropertyName("createdAt")]
+    public DateTime CreatedAt { get; set; }
+
+    [JsonPropertyName("lastModifiedAt")]
+    public DateTime LastModifiedAt { get; set; }
+
+    [JsonPropertyName("owner")]
+    public string? Owner { get; set; }
+
+    [JsonPropertyName("rawRowsCount")]
+    public int RawRowsCount { get; set; }
+}
+
 public class ProjectDto
 {
     // From import jobs response
@@ -133,7 +155,8 @@ public class ProjectService
         {
             SetAuthHeader();
 
-            var url = $"projects/import/jobs?page={page}&pageSize={pageSize}";
+            // Use the main projects endpoint
+            var url = $"projects?page={page}&pageSize={pageSize}";
 
             var response = await _httpClient.GetAsync(url);
             var content = await response.Content.ReadAsStringAsync();
@@ -142,20 +165,36 @@ public class ProjectService
 
             if (response.IsSuccessStatusCode)
             {
-                var result = JsonSerializer.Deserialize<ApiResult<ProjectListResult>>(content,
+                // Try new format first (direct list)
+                var directResult = JsonSerializer.Deserialize<ApiResult<List<ProjectListItemDto>>>(content,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-                if (result?.Succeeded == true && result.Data != null)
+                if (directResult?.Succeeded == true && directResult.Data != null)
                 {
-                    // Filter to show only completed projects by default if search not specified
-                    if (string.IsNullOrEmpty(search))
+                    // Convert to ProjectListResult format
+                    var items = directResult.Data.Select(p => new ProjectDto
                     {
-                        result.Data.Items = result.Data.Items.Where(p => p.IsCompleted).ToList();
-                    }
-                    return ServiceResult<ProjectListResult>.Success(result.Data);
+                        JobId = p.ProjectId,
+                        ResultProjectId = p.ProjectId,
+                        ProjectName = p.ProjectName,
+                        TotalRows = p.RawRowsCount,
+                        CreatedAt = p.CreatedAt,
+                        UpdatedAt = p.LastModifiedAt,
+                        State = 2 // Completed
+                    }).ToList();
+
+                    var listResult = new ProjectListResult
+                    {
+                        Items = items,
+                        Total = items.Count,
+                        Page = page,
+                        PageSize = pageSize
+                    };
+
+                    return ServiceResult<ProjectListResult>.Success(listResult);
                 }
 
-                return ServiceResult<ProjectListResult>.Fail(result?.Message ?? "Failed to load projects");
+                return ServiceResult<ProjectListResult>.Fail(directResult?.Message ?? "Failed to load projects");
             }
 
             return ServiceResult<ProjectListResult>.Fail($"Server error: {response.StatusCode}");

@@ -37,23 +37,21 @@ public class RegisterRequest
 
 public class ApiLoginResponse
 {
-    [JsonPropertyName("succeeded")]
-    public bool Succeeded { get; set; }
+    // فرمت واقعی API
+    [JsonPropertyName("isAuthenticated")]
+    public bool IsAuthenticated { get; set; }
 
-    [JsonPropertyName("accessToken")]
-    public string AccessToken { get; set; } = "";
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = "";
 
-    [JsonPropertyName("refreshToken")]
-    public string RefreshToken { get; set; } = "";
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
 
-    [JsonPropertyName("expiresAt")]
-    public DateTime? ExpiresAt { get; set; }
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = "";
 
-    [JsonPropertyName("user")]
-    public ApiUserInfo? User { get; set; }
-
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
+    [JsonPropertyName("position")]
+    public string Position { get; set; } = "";
 }
 
 public class ApiUserInfo
@@ -154,30 +152,25 @@ public class AuthService
                 return new AuthResult(false, "Invalid server response");
             }
 
-            if (loginResponse.Succeeded && !string.IsNullOrEmpty(loginResponse.AccessToken))
+            if (loginResponse.IsAuthenticated && !string.IsNullOrEmpty(loginResponse.Token))
             {
-                var fullName = loginResponse.User != null 
-                    ? $"{loginResponse.User.FirstName} {loginResponse.User.LastName}".Trim()
-                    : username;
-                var role = loginResponse.User?.Role ?? "User";
-
                 _currentUser = new AuthResult(
                     IsAuthenticated: true,
                     Message: "Login successful",
-                    Name: string.IsNullOrWhiteSpace(fullName) ? username : fullName,
-                    Token: loginResponse.AccessToken,
-                    Position: role
+                    Name: string.IsNullOrWhiteSpace(loginResponse.Name) ? username : loginResponse.Name,
+                    Token: loginResponse.Token,
+                    Position: string.IsNullOrWhiteSpace(loginResponse.Position) ? "User" : loginResponse.Position
                 );
 
                 // set bearer token for subsequent calls
                 _httpClient.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", loginResponse.AccessToken);
+                    new AuthenticationHeaderValue("Bearer", loginResponse.Token);
 
                 _logger.LogInformation("User {Username} logged in successfully", username);
                 return _currentUser;
             }
 
-            var errorMessage = loginResponse.Error ?? "Invalid username or password";
+            var errorMessage = loginResponse.Message ?? "Invalid username or password";
             _logger.LogWarning("Login failed for {Username}: {Error}", username, errorMessage);
             return new AuthResult(false, errorMessage);
         }

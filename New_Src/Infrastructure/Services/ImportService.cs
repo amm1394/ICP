@@ -254,9 +254,12 @@ public class ImportService : IImportService
             var (parsedRows, warnings) = await _parser.ParseFileAsync(
                 fileStream, fileName, format, request, progress, cancellationToken);
 
+            // If no parsed rows, fallback to simple CSV import
             if (!parsedRows.Any())
             {
-                return Result<AdvancedImportResult>.Fail("No data rows found in file");
+                _logger.LogWarning("Advanced parser returned no rows, falling back to simple import");
+                fileStream.Position = 0;
+                return await ImportSimpleCsvAsync(fileStream, request, progress, cancellationToken);
             }
 
             progress?.Report((parsedRows.Count, 0, "Saving to database..."));
@@ -351,6 +354,181 @@ public class ImportService : IImportService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Advanced import failed for {FileName}", fileName);
+            return Result<AdvancedImportResult>.Fail($"Import failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Simple CSV import - reads all columns as-is without special parsing
+    /// Used as fallback when advanced parser returns no rows
+    /// </summary>
+    private async Task<Result<AdvancedImportResult>> ImportSimpleCsvAsync(
+        Stream fileStream,
+        AdvancedImportRequest request,
+        IProgress<(int total, int processed, string message)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                DetectDelimiter = true,
+                BadDataFound = null,
+                MissingFieldFound = null,
+                TrimOptions = TrimOptions.Trim,
+                HeaderValidated = null
+            };
+
+            using var reader = new StreamReader(fileStream, System.Text.Encoding.UTF8, leaveOpen: true);
+            using var csv = new CsvReader(reader, config);
+
+            // Skip to header row if specified
+            int headerRow = request.HeaderRow ?? 0;
+            for (int i = 0; i < headerRow && csv.Read(); i++) { }
+
+            if (!csv.Read())
+            {
+                return Result<AdvancedImportResult>.Fail("File is empty or has no header");
+            }
+
+            csv.ReadHeader();
+            var headers = csv.HeaderRecord ?? Array.Empty<string>();
+            
+            if (headers.Length == 0)
+            {
+                return Result<AdvancedImportResult>.Fail("No headers found in file");
+            }
+
+            _logger.LogInformation("Simple import: Found {Count} columns: {Headers}", headers.Length, string.Join(", ", headers));
+
+            var batch = new List<RawDataDto>(DefaultChunkSize);
+            Guid? projectId = null;
+            int rowNumber = 0;
+            int saved = 0;
+            var warnings = new List<ImportWarning>();
+
+            // Find SampleID column (various possible names)
+            var sampleIdColumn = headers.FirstOrDefault(h => 
+                h.Equals("SampleID", StringComparison.OrdinalIgnoreCase) ||
+                h.Equals("Sample_ID", StringComparison.OrdinalIgnoreCase) ||
+                h.Equals("SampleId", StringComparison.OrdinalIgnoreCase) ||
+                h.Equals("Sample", StringComparison.OrdinalIgnoreCase) ||
+                h.Contains("Sample", StringComparison.OrdinalIgnoreCase));
+
+            while (csv.Read())
+            {
+                if (cancellationToken.IsCancellationRequested) break;
+                rowNumber++;
+
+                // Skip last row if requested
+                if (request.SkipLastRow && csv.Parser.RawRow == csv.Parser.Count - 1)
+                    continue;
+
+                try
+                {
+                    var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                    string? sampleId = null;
+
+                    foreach (var header in headers)
+                    {
+                        var value = csv.GetField(header);
+                        
+                        if (sampleIdColumn != null && header.Equals(sampleIdColumn, StringComparison.OrdinalIgnoreCase))
+                        {
+                            sampleId = value;
+                        }
+
+                        // Try to parse as number, otherwise keep as string
+                        if (string.IsNullOrWhiteSpace(value))
+                        {
+                            dict[header] = null;
+                        }
+                        else if (double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
+                        {
+                            dict[header] = d;
+                        }
+                        else if (bool.TryParse(value, out var b))
+                        {
+                            dict[header] = b;
+                        }
+                        else
+                        {
+                            dict[header] = value;
+                        }
+                    }
+
+                    var columnDataJson = JsonSerializer.Serialize(dict);
+                    batch.Add(new RawDataDto(columnDataJson, sampleId));
+                }
+                catch (Exception ex)
+                {
+                    warnings.Add(new ImportWarning(rowNumber, "", $"Row parse error: {ex.Message}", ImportWarningLevel.Warning));
+                }
+
+                if (batch.Count >= DefaultChunkSize)
+                {
+                    var saveResult = await _persistence.SaveProjectAsync(
+                        projectId ?? Guid.Empty,
+                        request.ProjectName,
+                        request.Owner,
+                        batch,
+                        null);
+
+                    if (!saveResult.Succeeded)
+                    {
+                        return Result<AdvancedImportResult>.Fail(
+                            $"Failed to save batch: {saveResult.Messages?.FirstOrDefault()}");
+                    }
+
+                    projectId = saveResult.Data!.ProjectId;
+                    saved += batch.Count;
+                    batch.Clear();
+
+                    progress?.Report((rowNumber, saved, $"Saved {saved} rows"));
+                }
+            }
+
+            // Save remaining batch
+            if (batch.Count > 0)
+            {
+                var saveResult = await _persistence.SaveProjectAsync(
+                    projectId ?? Guid.Empty,
+                    request.ProjectName,
+                    request.Owner,
+                    batch,
+                    null);
+
+                if (!saveResult.Succeeded)
+                {
+                    return Result<AdvancedImportResult>.Fail(
+                        $"Failed to save final batch: {saveResult.Messages?.FirstOrDefault()}");
+                }
+
+                projectId = saveResult.Data!.ProjectId;
+                saved += batch.Count;
+            }
+
+            if (projectId == null)
+            {
+                return Result<AdvancedImportResult>.Fail("No data was imported");
+            }
+
+            _logger.LogInformation("Simple import completed: {Rows} rows imported to project {ProjectId}", saved, projectId);
+
+            return Result<AdvancedImportResult>.Success(new AdvancedImportResult(
+                projectId.Value,
+                rowNumber,
+                saved,
+                rowNumber - saved,
+                FileFormat.TabularCsv,
+                new List<string>(), // ImportedSolutionLabels - empty for simple import
+                headers.ToList(),   // ImportedElements - use headers as elements
+                warnings
+            ));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Simple CSV import failed");
             return Result<AdvancedImportResult>.Fail($"Import failed: {ex.Message}");
         }
     }
