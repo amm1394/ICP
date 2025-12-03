@@ -31,11 +31,11 @@
         <MudPaper Elevation="2" Class="pa-4">
             <div class="d-flex justify-space-between align-center">
                 <div>
-                    <MudText Typo="Typo.h4" Color="Color.Primary" Class="fw-bold">@_totalProjects</MudText>
+                    <MudText Typo="Typo.h4" Class="fw-bold result-random-icons">@_totalProjects</MudText>
                     <MudText Typo="Typo.body2" Class="mud-text-secondary">Total Projects</MudText>
                 </div>
-                <MudAvatar Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Large">
-                    <MudIcon Icon="@Icons.Material.Filled.Folder" />
+                <MudAvatar Class="result-random-icons" Variant="Variant.Outlined" Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Class="result-random-icons" />
                 </MudAvatar>
             </div>
         </MudPaper>
@@ -44,11 +44,11 @@
         <MudPaper Elevation="2" Class="pa-4">
             <div class="d-flex justify-space-between align-center">
                 <div>
-                    <MudText Typo="Typo.h4" Color="Color.Success" Class="fw-bold">@_samplesAnalyzed</MudText>
+                    <MudText Typo="Typo.h4" Class="fw-bold result-random-icons">@_samplesAnalyzed</MudText>
                     <MudText Typo="Typo.body2" Class="mud-text-secondary">Samples Analyzed</MudText>
                 </div>
-                <MudAvatar Color="Color.Success" Variant="Variant.Outlined" Size="Size.Large">
-                    <MudIcon Icon="@Icons.Material.Filled.Science" />
+                <MudAvatar Class="result-random-icons" Variant="Variant.Outlined" Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.Science" Class="result-random-icons" />
                 </MudAvatar>
             </div>
         </MudPaper>
@@ -57,11 +57,11 @@
         <MudPaper Elevation="2" Class="pa-4">
             <div class="d-flex justify-space-between align-center">
                 <div>
-                    <MudText Typo="Typo.h4" Color="Color.Warning" Class="fw-bold">@_crmStandards</MudText>
+                    <MudText Typo="Typo.h4"  Class="fw-bold result-random-icons">@_crmStandards</MudText>
                     <MudText Typo="Typo.body2" Class="mud-text-secondary">CRM Standards</MudText>
                 </div>
-                <MudAvatar Color="Color.Warning" Variant="Variant.Outlined" Size="Size.Large">
-                    <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" />
+                <MudAvatar Class="result-random-icons" Variant="Variant.Outlined" Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Class="result-random-icons" />
                 </MudAvatar>
             </div>
         </MudPaper>
@@ -70,11 +70,11 @@
         <MudPaper Elevation="2" Class="pa-4">
             <div class="d-flex justify-space-between align-center">
                 <div>
-                    <MudText Typo="Typo.h4" Color="Color.Info" Class="fw-bold">@_passRate%</MudText>
+                    <MudText Typo="Typo.h4" Class="fw-bold result-random-icons">@_passRate%</MudText>
                     <MudText Typo="Typo.body2" Class="mud-text-secondary">Pass Rate</MudText>
                 </div>
-                <MudAvatar Color="Color.Info" Variant="Variant.Outlined" Size="Size.Large">
-                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
+                <MudAvatar Class="result-random-icons" Variant="Variant.Outlined" Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="result-random-icons" />
                 </MudAvatar>
             </div>
         </MudPaper>
@@ -96,18 +96,18 @@
                                Class="pa-4 d-flex flex-column"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/import"))">
-                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Color="Color.Primary" Size="Size.Large" />
+                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="icon-action-color" Size="Size.Large" />
                         <MudText Typo="Typo.body2" Class="mt-2">Import Data</MudText>
                     </MudButton>
                 </MudItem>
                 <MudItem xs="6" sm="4">
                     <MudButton Variant="Variant.Outlined" 
                                FullWidth="true" 
-                               Class="pa-4 d-flex flex-column"
+                               Class="pa-4 d-flex flex-column text-black"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/projects"))">
-                        <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Secondary" Size="Size.Large" />
-                        <MudText Typo="Typo.body2" Class="mt-2">Projects</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.Folder" Class="icon-action-color" Size="Size.Large" />
+                        <MudText Typo="Typo.body2" Class="mt-2 text-black">Projects</MudText>
                     </MudButton>
                 </MudItem>
                 <MudItem xs="6" sm="4">
@@ -116,7 +116,7 @@
                                Class="pa-4 d-flex flex-column"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/pivot"))">
-                        <MudIcon Icon="@Icons.Material.Filled.TableChart" Color="Color.Tertiary" Size="Size.Large" />
+                        <MudIcon Icon="@Icons.Material.Filled.TableChart" Class="icon-action-color" Size="Size.Large" />
                         <MudText Typo="Typo.body2" Class="mt-2">Pivot Table</MudText>
                     </MudButton>
                 </MudItem>
@@ -126,7 +126,7 @@
                                Class="pa-4 d-flex flex-column"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/process/weight"))">
-                        <MudIcon Icon="@Icons.Material.Filled.Engineering" Color="Color.Warning" Size="Size.Large" />
+                        <MudIcon Icon="@Icons.Material.Filled.Engineering" Class="icon-action-color" Size="Size.Large" />
                         <MudText Typo="Typo.body2" Class="mt-2">Process</MudText>
                     </MudButton>
                 </MudItem>
@@ -136,7 +136,7 @@
                                Class="pa-4 d-flex flex-column"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/crm"))">
-                        <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Color="Color.Success" Size="Size.Large" />
+                        <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Class="icon-action-color" Size="Size.Large" />
                         <MudText Typo="Typo.body2" Class="mt-2">CRM Database</MudText>
                     </MudButton>
                 </MudItem>
@@ -146,7 +146,7 @@
                                Class="pa-4 d-flex flex-column"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/report"))">
-                        <MudIcon Icon="@Icons.Material.Filled.Assessment" Color="Color.Info" Size="Size.Large" />
+                        <MudIcon Icon="@Icons.Material.Filled.Assessment" Class="icon-action-color" Size="Size.Large" />
                         <MudText Typo="Typo.body2" Class="mt-2">Reports</MudText>
                     </MudButton>
                 </MudItem>
@@ -230,4 +230,5 @@
     }
 
     private record RecentProject(Guid Id, string Name, DateTime Date);
+
 }

@@ -68,7 +68,7 @@
 }
 
 .login-welcome-title {
-    font-weight: 800;
+    font-weight: 500;
     color: var(--text-primary);
     margin-bottom: 2rem;
     font-size: 1.5rem;
