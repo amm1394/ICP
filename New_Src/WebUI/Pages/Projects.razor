@@ -103,6 +103,12 @@
                                                Color="Color.Primary"
                                                OnClick="@(() => OpenProject(context))" />
                             </MudTooltip>
+                            <MudTooltip Text="Version History">
+                                <MudIconButton Icon="@Icons.Material.Filled.History" 
+                                               Size="Size.Small"
+                                               Color="Color.Info"
+                                               OnClick="@(() => OpenVersionHistory(context))" />
+                            </MudTooltip>
                             <MudTooltip Text="Process Data">
                                 <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" 
                                                Size="Size.Small"
@@ -201,5 +207,10 @@
                 Snackbar.Add(deleteResult.Message ?? "Failed to delete project", Severity.Error);
             }
         }
+    }
+
+    private void OpenVersionHistory(ProjectDto project)
+    {
+        NavManager.NavigateTo($"/project/{project.ProjectId}/versions");
     }
 }

@@ -28,12 +28,13 @@ public class AdvancedFileParser
     private static readonly Regex MethodFilePattern = new(@"^Method\s*File\s*:?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex CalibrationPattern = new(@"^Calibration\s*File\s*:?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // More flexible element pattern - allows dash, space, or no separator
-    private static readonly Regex ElementPattern = new(@"^([A-Za-z]{1,2})[\s\-_]?(\d+\. ?\d*)$", RegexOptions.Compiled);
+    // Element pattern matching Python: r'^([A-Za-z]+)(\d+\.?\d*)$'
+    // Python split_element_name: "Ce140" -> "Ce 140", "Na326.068" -> "Na 326.068"
+    private static readonly Regex ElementPattern = new(@"^([A-Za-z]+)(\d+\.?\d*)$", RegexOptions.Compiled);
 
     // Alternative element patterns for fallback
-    private static readonly Regex ElementPatternAlt1 = new(@"^(\d+\.?\d*)\s*([A-Za-z]{1,2})$", RegexOptions.Compiled); // "326.068 Na"
-    private static readonly Regex ElementPatternAlt2 = new(@"^([A-Za-z]{1,2})(\d+)$", RegexOptions.Compiled); // "Na326"
+    private static readonly Regex ElementPatternAlt1 = new(@"^(\d+\.?\d*)\s*([A-Za-z]+)$", RegexOptions.Compiled); // "326.068 Na"
+    private static readonly Regex ElementPatternAlt2 = new(@"^([A-Za-z]+)[\s\-_](\d+\.?\d*)$", RegexOptions.Compiled); // "Na 326" or "Na-326"
 
     // Known column names
     private static readonly string[] SolutionLabelColumns = { "Solution Label", "SolutionLabel", "Sample ID", "SampleId", "Sample", "Label", "Name" };
@@ -761,8 +762,10 @@ public class AdvancedFileParser
     #region Enhanced Sample Type Detection (matching Python logic)
 
     /// <summary>
-    /// Enhanced sample type detection matching Python code patterns
-    /// Patterns from Python: load_file. py, pivot_tab.py, empty_check.py
+    /// Sample type detection matching Python code exactly.
+    /// Python uses only two types: 'Samp' (or 'Sample') and 'Blk'
+    /// All other samples (STD, QC, RM, etc.) are treated as 'Samp' in Python
+    /// This ensures consistent behavior with Python output
     /// </summary>
     private string DetectSampleType(string solutionLabel, AdvancedImportRequest? options)
     {
@@ -771,13 +774,11 @@ public class AdvancedFileParser
 
         var upper = solutionLabel.ToUpperInvariant().Trim();
 
-        // === BLANK Detection (expanded) ===
-        // Python patterns: "BLANK", "BLK", rinse solutions
+        // === BLANK Detection (matching Python load_file.py line 157) ===
+        // Python: type_value = "Blk" if "BLANK" in current_sample.upper() else "Sample"
         if (upper.Contains("BLANK") ||
             upper.Contains("BLK") ||
             upper.StartsWith("BL1") || upper.StartsWith("BL2") || upper.StartsWith("BL3") ||
-            upper.Contains("RINSE") ||
-            upper.Contains("WASH") ||
             upper == "B" ||
             Regex.IsMatch(upper, @"^BL\d+$") ||
             Regex.IsMatch(upper, @"^BLANK\s*\d*$"))
@@ -785,63 +786,9 @@ public class AdvancedFileParser
             return "Blk";
         }
 
-        // === STANDARD Detection (expanded) ===
-        // Python patterns: "STD", "STANDARD", calibration standards
-        if (upper.Contains("STD") ||
-            upper.Contains("STANDARD") ||
-            upper.StartsWith("CAL") ||
-            upper.StartsWith("S1") || upper.StartsWith("S2") || upper.StartsWith("S3") ||
-            upper.StartsWith("S4") || upper.StartsWith("S5") || upper.StartsWith("S6") ||
-            Regex.IsMatch(upper, @"^S\d+$") ||
-            Regex.IsMatch(upper, @"^\d+\s*(PPM|PPB|MG/L|UG/L)$", RegexOptions.IgnoreCase) ||
-            Regex.IsMatch(upper, @"^STD\s*\d+$") ||
-            Regex.IsMatch(upper, @"^\d+\s*STD$"))
-        {
-            return "Std";
-        }
-
-        // === QC Detection (expanded) ===
-        // Python patterns: QC samples, ICV, CCV, continuing calibration
-        if (upper.Contains("QC") ||
-            upper.Contains("CHECK") ||
-            upper.Contains("QUALITY") ||
-            upper.Contains("CONTROL") ||
-            upper.StartsWith("ICV") ||  // Initial Calibration Verification
-            upper.StartsWith("CCV") ||  // Continuing Calibration Verification
-            upper.StartsWith("ICB") ||  // Initial Calibration Blank
-            upper.StartsWith("CCB") ||  // Continuing Calibration Blank
-            upper.Contains("DRIFT") ||
-            upper.Contains("VERIFY") ||
-            Regex.IsMatch(upper, @"^QC\s*\d*$") ||
-            Regex.IsMatch(upper, @"^(ICV|CCV|ICB|CCB)\d*$"))
-        {
-            return "QC";
-        }
-
-        // === Reference Material Detection (expanded) ===
-        // Python patterns: OREAS, SRM, CRM, NIST, BCR, geological standards
-        if (Regex.IsMatch(upper, @"\b(OREAS|SRM|CRM|NIST|BCR|TILL|GBW|AGV|BCR|BHVO|BIR|DNC|DTS|GSP|PCC|RGM|SCO|SDC|STM|W-2|JA|JB|JG|JR)\b") ||
-            Regex.IsMatch(upper, @"^(OREAS|SRM|CRM)\s*\d+", RegexOptions.IgnoreCase) ||
-            upper.Contains("REFERENCE") ||
-            upper.Contains("CERTIFIED") ||
-            Regex.IsMatch(upper, @"^RM[\s\-_]?\d+$"))
-        {
-            return "RM";
-        }
-
-        // === Duplicate/Repeat Detection ===
-        // Python patterns: TEK, RET, DUP for duplicates
-        if (upper.EndsWith("-TEK") || upper.EndsWith(" TEK") || upper.EndsWith("_TEK") ||
-            upper.EndsWith("-RET") || upper.EndsWith(" RET") || upper.EndsWith("_RET") ||
-            upper.EndsWith("-DUP") || upper.EndsWith(" DUP") || upper.EndsWith("_DUP") ||
-            upper.EndsWith("-REP") || upper.EndsWith(" REP") || upper.EndsWith("_REP") ||
-            Regex.IsMatch(upper, @"[-_\s](TEK|RET|DUP|REP|DUPLICATE|REPEAT)\d*$"))
-        {
-            // It's a sample duplicate, still return Samp
-            return "Samp";
-        }
-
-        // === Default: Sample ===
+        // === All other samples are 'Samp' (matching Python behavior) ===
+        // Python pivot_creator.py line 22: df_filtered = df[df['Type'].isin(['Samp', 'Sample'])]
+        // This includes STD, QC, RM, OREAS, etc. - they all get Type='Samp' in Python
         return "Samp";
     }
 

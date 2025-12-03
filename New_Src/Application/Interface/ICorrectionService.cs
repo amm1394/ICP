@@ -40,7 +40,7 @@ public interface ICorrectionService
 
     /// <summary>
     /// Apply blank and scale optimization to project data
-    /// Formula: CorrectedValue = (OriginalValue + Blank) * Scale
+    /// Formula: CorrectedValue = (OriginalValue - Blank) * Scale
     /// </summary>
     Task<Result<CorrectionResultDto>> ApplyOptimizationAsync(ApplyOptimizationRequest request);
 

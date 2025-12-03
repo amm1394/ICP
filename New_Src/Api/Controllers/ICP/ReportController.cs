@@ -103,4 +103,35 @@ public class ReportController : ControllerBase
 
         return File(result.Data!, contentType, $"export_{request.ProjectId}_{DateTime.Now:yyyyMMdd}. {extension}");
     }
+
+    /// <summary>
+    /// Get calibration ranges for all elements
+    /// Based on Python report.py logic
+    /// </summary>
+    [HttpGet("{projectId:guid}/calibration-ranges")]
+    public async Task<ActionResult> GetCalibrationRanges(Guid projectId)
+    {
+        var result = await _reportService.GetCalibrationRangesAsync(projectId);
+        if (!result.Succeeded)
+            return BadRequest(new { succeeded = false, messages = result.Messages });
+
+        return Ok(new { succeeded = true, data = result.Data });
+    }
+
+    /// <summary>
+    /// Select best wavelength for each base element per row
+    /// Based on Python report.py select_best_wavelength_for_row()
+    /// </summary>
+    [HttpPost("best-wavelengths")]
+    public async Task<ActionResult> SelectBestWavelengths([FromBody] BestWavelengthRequest request)
+    {
+        if (request.ProjectId == Guid.Empty)
+            return BadRequest(new { succeeded = false, messages = new[] { "ProjectId is required" } });
+
+        var result = await _reportService.SelectBestWavelengthsAsync(request);
+        if (!result.Succeeded)
+            return BadRequest(new { succeeded = false, messages = result.Messages });
+
+        return Ok(new { succeeded = true, data = result.Data });
+    }
 }

@@ -374,50 +374,112 @@ public class DriftCorrectionService : IDriftCorrectionService
 
     #endregion
 
-    #region Private Helper Methods - Segment Detection
+    #region Private Helper Methods - Segment Detection (Python-Compatible)
 
+    /// <summary>
+    /// Detect segments based on RM/Standard positions with Cone-based segmentation
+    /// Python-compatible logic from RM_check.py:
+    /// - Cone detection triggers a new segment
+    /// - Segments are created between consecutive standards
+    /// - Each segment tracks ref_rm_num (first Base/Check after Cone)
+    /// </summary>
     private List<DriftSegment> DetectSegments(List<ParsedRow> data, string? basePattern, string? conePattern)
     {
         var segments = new List<DriftSegment>();
         var baseRegex = new Regex(basePattern ?? DefaultBasePattern, RegexOptions.IgnoreCase);
         var coneRegex = new Regex(conePattern ?? DefaultConePattern, RegexOptions.IgnoreCase);
 
-        var standardIndices = new List<(int Index, string Label, string Type)>();
+        // Step 1: Identify all RM/Standard positions with their types
+        var standardIndices = new List<(int Index, string Label, int RmNum, string RmType)>();
 
         for (int i = 0; i < data.Count; i++)
         {
             var label = data[i].SolutionLabel;
+            string rmType = "Unknown";
+            int rmNum = 0;
 
-            if (baseRegex.IsMatch(label))
-                standardIndices.Add((i, label, "Base"));
+            // Check for RM pattern first (most common)
+            if (IsRmSample(label, out var num, out var type, "RM"))
+            {
+                rmNum = num;
+                rmType = type;
+                standardIndices.Add((i, label, rmNum, rmType));
+            }
+            else if (baseRegex.IsMatch(label))
+            {
+                (rmNum, rmType) = ExtractRmInfo(label, "STD");
+                if (rmType == "Base") rmType = "Base";
+                standardIndices.Add((i, label, rmNum, "Base"));
+            }
             else if (coneRegex.IsMatch(label))
-                standardIndices.Add((i, label, "Cone"));
+            {
+                (rmNum, _) = ExtractRmInfo(label, "CONE");
+                standardIndices.Add((i, label, rmNum, "Cone"));
+            }
             else if (RmPattern.IsMatch(label))
-                standardIndices.Add((i, label, "RM"));
+            {
+                (rmNum, rmType) = ExtractRmInfo(label, "RM");
+                standardIndices.Add((i, label, rmNum, rmType));
+            }
         }
 
-        // Create segments between standards
         if (standardIndices.Count < 2)
         {
             // Single segment for entire data
             segments.Add(new DriftSegment(0, 0, data.Count - 1, null, null, data.Count));
+            return segments;
         }
-        else
-        {
-            for (int i = 0; i < standardIndices.Count - 1; i++)
-            {
-                var start = standardIndices[i];
-                var end = standardIndices[i + 1];
 
-                segments.Add(new DriftSegment(
-                    i,
-                    start.Index,
-                    end.Index,
-                    start.Label,
-                    end.Label,
-                    end.Index - start.Index
-                ));
+        // Step 2: Python-compatible segmentation with Cone detection
+        // Cone triggers a new segment (like Python RM_check.py line ~380)
+        int currentSegmentIndex = 0;
+        int? refRmNum = null;
+        var segmentStarts = new List<int> { 0 }; // Track segment boundaries
+
+        for (int i = 0; i < standardIndices.Count; i++)
+        {
+            var (index, label, rmNum, rmType) = standardIndices[i];
+
+            // Cone detection → start new segment (Python: if rm_type == 'Cone': current_segment += 1)
+            if (rmType == "Cone")
+            {
+                currentSegmentIndex++;
+                refRmNum = null; // Reset reference RM for new segment
+                segmentStarts.Add(index);
             }
+
+            // First Base/Check in segment becomes reference (Python: ref_rm_num logic)
+            if (refRmNum == null && (rmType == "Base" || rmType == "Check"))
+            {
+                refRmNum = rmNum;
+            }
+        }
+
+        // Step 3: Create segments between consecutive standards within each Cone-segment
+        for (int i = 0; i < standardIndices.Count - 1; i++)
+        {
+            var start = standardIndices[i];
+            var end = standardIndices[i + 1];
+
+            // Determine segment index based on position relative to Cone boundaries
+            int segIdx = 0;
+            for (int s = segmentStarts.Count - 1; s >= 0; s--)
+            {
+                if (start.Index >= segmentStarts[s])
+                {
+                    segIdx = s;
+                    break;
+                }
+            }
+
+            segments.Add(new DriftSegment(
+                segments.Count, // Use sequential numbering
+                start.Index,
+                end.Index,
+                start.Label,
+                end.Label,
+                end.Index - start.Index
+            ));
         }
 
         return segments;
@@ -448,15 +510,29 @@ public class DriftCorrectionService : IDriftCorrectionService
 
     /// <summary>
     /// Calculate drift ratios for each segment and element
-    /// Python-compatible: calculates ratio between start and end of each segment (LOCAL approach)
-    /// Python equivalent: ratio = end_standard_value / start_standard_value
+    /// 
+    /// UPDATED to match Python logic (RM_check.py lines 487-503):
+    /// Python uses: ratio = current_value / initial_value
+    /// Where:
+    ///   - initial_value: Value from initial_rm_df (stored before any corrections)
+    ///   - current_value: Value from current seg_rm_df (may have been modified)
+    /// 
+    /// For first-time correction (no previous corrections applied):
+    ///   current = initial, so ratio = end/start effectively
+    /// 
+    /// This implementation uses the original RawDataRows as "initial" values
+    /// and the passed data (which may be corrected) as "current" values.
     /// </summary>
     private Dictionary<int, Dictionary<string, decimal>> CalculateSegmentRatios(
         List<ParsedRow> data,
         List<DriftSegment> segments,
-        List<string> elements)
+        List<string> elements,
+        List<ParsedRow>? initialData = null)
     {
         var result = new Dictionary<int, Dictionary<string, decimal>>();
+        
+        // If no initial data provided, use the same data (first-time correction)
+        var initial = initialData ?? data;
 
         foreach (var segment in segments)
         {
@@ -464,13 +540,19 @@ public class DriftCorrectionService : IDriftCorrectionService
 
             foreach (var element in elements)
             {
-                var startValue = GetElementValue(data[segment.StartIndex], element);
-                var endValue = GetElementValue(data[segment.EndIndex], element);
+                // Python logic (RM_check.py line 503):
+                // ratios = np.where(effective_initial != 0, effective_current / effective_initial, 1.0)
+                
+                // Get initial value (from original data - before any corrections)
+                var initialValue = GetElementValue(initial[segment.EndIndex], element);
+                
+                // Get current value (from current data - may have been corrected)
+                var currentValue = GetElementValue(data[segment.EndIndex], element);
 
-                if (startValue.HasValue && endValue.HasValue && startValue.Value != 0)
+                if (initialValue.HasValue && currentValue.HasValue && initialValue.Value != 0)
                 {
-                    // Python: ratio = end_value / start_value (LOCAL ratio for this segment only)
-                    ratios[element] = endValue.Value / startValue.Value;
+                    // Python: ratio = current / initial
+                    ratios[element] = currentValue.Value / initialValue.Value;
                 }
                 else
                 {
@@ -482,6 +564,17 @@ public class DriftCorrectionService : IDriftCorrectionService
         }
 
         return result;
+    }
+    
+    /// <summary>
+    /// Overload for backward compatibility - uses same data for initial and current
+    /// </summary>
+    private Dictionary<int, Dictionary<string, decimal>> CalculateSegmentRatios(
+        List<ParsedRow> data,
+        List<DriftSegment> segments,
+        List<string> elements)
+    {
+        return CalculateSegmentRatios(data, segments, elements, null);
     }
 
     /// <summary>
@@ -693,7 +786,10 @@ public class DriftCorrectionService : IDriftCorrectionService
                     else
                     {
                         // برای نمونه‌های بعد از استاندارد اول
-                        // Python: effective_ratio = 1.0 + step_delta * step_index
+                        // Python: effective_ratio = 1.0 + step_delta * (j + 1) where j starts from 0
+                        // So for first sample after standard: j=0 → factor = 1.0 + step_delta * 1
+                        // In .NET: stepIndex=1 for first sample after standard
+                        // We need to use stepIndex directly (since stepIndex starts from 1 for first sample)
                         effectiveRatio = 1.0m + (stepDelta * stepIndex);
                     }
 
@@ -786,6 +882,79 @@ public class DriftCorrectionService : IDriftCorrectionService
         }
 
         return result;
+    }
+
+    #endregion
+
+    #region Private Helper Methods - RM Info Extraction (Python-Compatible)
+
+    /// <summary>
+    /// Extract RM number and type from Solution Label
+    /// Based on Python RM_check.py extract_rm_info() function
+    /// Examples:
+    ///     RM1 → (1, "Base")
+    ///     RM1check → (1, "Check")
+    ///     RM2 cone → (2, "Cone")
+    ///     RMcheck → (0, "Check")
+    ///     RM → (0, "Base")
+    /// </summary>
+    private static (int RmNumber, string RmType) ExtractRmInfo(string label, string keyword = "RM")
+    {
+        label = (label ?? "").Trim();
+        var labelLower = label.ToLower();
+
+        // Remove keyword from beginning (RM, rm, Rm, ...)
+        var keywordPattern = new Regex($@"^{Regex.Escape(keyword)}\s*[-_]?\s*", RegexOptions.IgnoreCase);
+        var cleaned = keywordPattern.Replace(labelLower, "");
+
+        var rmType = "Base";
+        var rmNumber = 0;
+
+        // Detect type (check/cone) — even if attached
+        var typeMatch = Regex.Match(cleaned, @"(chek|check|cone)");
+        string beforeText;
+
+        if (typeMatch.Success)
+        {
+            var typ = typeMatch.Groups[1].Value;
+            rmType = typ is "chek" or "check" ? "Check" : "Cone";
+            beforeText = cleaned.Substring(0, typeMatch.Index);
+        }
+        else
+        {
+            beforeText = cleaned;
+        }
+
+        // Extract number before the type
+        var numbers = Regex.Matches(beforeText, @"\d+");
+        if (numbers.Count > 0)
+        {
+            rmNumber = int.Parse(numbers[numbers.Count - 1].Value);
+        }
+
+        return (rmNumber, rmType);
+    }
+
+    /// <summary>
+    /// Check if a sample is an RM/Standard based on label and extract its info
+    /// </summary>
+    private static bool IsRmSample(string label, out int rmNumber, out string rmType, string keyword = "RM")
+    {
+        rmNumber = 0;
+        rmType = "Base";
+
+        if (string.IsNullOrWhiteSpace(label))
+            return false;
+
+        var labelLower = label.ToLower();
+        var keywordLower = keyword.ToLower();
+
+        // Check if label contains the keyword
+        if (!labelLower.Contains(keywordLower))
+            return false;
+
+        (rmNumber, rmType) = ExtractRmInfo(label, keyword);
+        return true;
     }
 
     #endregion

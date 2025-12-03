@@ -146,10 +146,14 @@
                               Loading="_isLoading">
                         <HeaderContent>
                             <MudTh Style="position: sticky; left: 0; background: var(--mud-palette-surface); z-index: 1;">
-                                <MudTableSortLabel SortBy="new Func<PivotRowDto, object>(x => x.SolutionLabel)">
+                                <MudTableSortLabel SortBy="new Func<AdvancedPivotRowDto, object>(x => x.SolutionLabel)">
                                     Solution Label
                                 </MudTableSortLabel>
                             </MudTh>
+                            @if (_hasRepeats)
+                            {
+                                <MudTh>Set</MudTh>
+                            }
                             @foreach (var col in _displayColumns)
                             {
                                 <MudTh>
@@ -169,6 +173,15 @@
                             <MudTd Style="position: sticky; left: 0; background: var(--mud-palette-surface); z-index: 1; font-weight: 500;">
                                 @context.SolutionLabel
                             </MudTd>
+                            @if (_hasRepeats)
+                            {
+                                <MudTd>
+                                    @if (context.SetSize > 1)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Info">@(context.SetIndex + 1)/@context.SetSize</MudChip>
+                                    }
+                                </MudTd>
+                            }
                             @foreach (var col in _displayColumns)
                             {
                                 <MudTd Style="text-align: right;">
@@ -208,17 +221,20 @@
 
     private Guid? _projectId;
     private string? _projectName;
-    private PivotResultDto? _pivotData;
+    private AdvancedPivotResultDto? _pivotData;
     private List<string> _allElements = new();
     private List<string> _displayColumns = new();
     private IEnumerable<string> _selectedElements = new HashSet<string>();
     private string _searchText = "";
     private int _decimalPlaces = 2;
     private bool _useOxide = false;
+    private bool _useInt = false;  // Use Int column instead of Corr Con
+    private bool _mergeRepeats = false;  // Merge repeated elements
     private bool _isLoading = true;  // Start with loading state
     private int _currentPage = 1;
     private int _pageSize = 100;
     private int _totalPages = 1;
+    private bool _hasRepeats = false;  // Track if data has repeated elements
 
     protected override async Task OnInitializedAsync()
     {
@@ -262,24 +278,27 @@
         _isLoading = true;
         StateHasChanged();
 
-        var request = new PivotRequest
-        {
-            ProjectId = _projectId.Value,
-            SearchText = string.IsNullOrWhiteSpace(_searchText) ? null : _searchText,
-            SelectedElements = _selectedElements.Any() ? _selectedElements.ToList() : null,
-            UseOxide = _useOxide,
-            DecimalPlaces = _decimalPlaces,
-            Page = _currentPage,
-            PageSize = _pageSize
-        };
+        // Use AdvancedPivotRequest for Python-compatible duplicate handling
+        var request = new AdvancedPivotRequest(
+            ProjectId: _projectId.Value,
+            SearchText: string.IsNullOrWhiteSpace(_searchText) ? null : _searchText,
+            SelectedElements: _selectedElements.Any() ? _selectedElements.ToList() : null,
+            UseOxide: _useOxide,
+            UseInt: _useInt,
+            DecimalPlaces: _decimalPlaces,
+            Page: _currentPage,
+            PageSize: _pageSize,
+            MergeRepeats: _mergeRepeats
+        );
 
-        var result = await PivotService.GetPivotTableAsync(request);
+        var result = await PivotService.GetAdvancedPivotTableAsync(request);
 
         if (result.Succeeded && result.Data != null)
         {
             _pivotData = result.Data;
             _displayColumns = _pivotData.Columns;
             _totalPages = (int)Math.Ceiling(_pivotData.TotalCount / (double)_pageSize);
+            _hasRepeats = _pivotData.Metadata?.HasRepeats ?? false;
 
             if (_pivotData.Metadata?.AllElements != null && !_allElements.Any())
             {

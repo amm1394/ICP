@@ -576,4 +576,369 @@ public class ReportService : IReportService
     }
 
     #endregion
+
+    #region Best Wavelength Selection (Python-compatible)
+
+    /// <summary>
+    /// Calculate calibration ranges for each element/wavelength
+    /// Based on Python report.py logic (lines 310-323):
+    /// std_data = original_df[(original_df['Type'] == 'Std') & (original_df['Element'] == element_name)][concentration_column]
+    /// Uses STD (Standard) type rows, NOT Blk (Blank)!
+    /// </summary>
+    public async Task<Result<Dictionary<string, CalibrationRange>>> GetCalibrationRangesAsync(Guid projectId)
+    {
+        try
+        {
+            var rawRows = await _db.RawDataRows
+                .AsNoTracking()
+                .Where(r => r.ProjectId == projectId)
+                .ToListAsync();
+
+            if (!rawRows.Any())
+                return Result<Dictionary<string, CalibrationRange>>.Fail("No data found for project");
+
+            var calibrationRanges = new Dictionary<string, CalibrationRange>();
+            var elementValues = new Dictionary<string, List<decimal>>();
+
+            // Python equivalent (report.py lines 310-312):
+            // std_data = original_df[(original_df['Type'] == 'Std') & (original_df['Element'] == element_name)][concentration_column]
+            // Uses STD type rows for calibration ranges
+            foreach (var row in rawRows)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(row.ColumnData);
+                    var root = doc.RootElement;
+
+                    // Check if this is a STD (Standard) row - NOT Blk!
+                    // Python: original_df['Type'] == 'Std'
+                    if (!root.TryGetProperty("Type", out var typeElement))
+                        continue;
+                    
+                    var type = typeElement.GetString();
+                    if (type != "Std" && type != "Standard")
+                        continue;
+
+                    // Get Element name
+                    if (!root.TryGetProperty("Element", out var elementElement))
+                        continue;
+                    
+                    var element = elementElement.GetString();
+                    if (string.IsNullOrEmpty(element))
+                        continue;
+
+                    // Get concentration value (Soln Conc or Corr Con)
+                    // Python: concentration_column = self.get_concentration_column(original_df)
+                    decimal? concValue = null;
+                    
+                    // Try Soln Conc first, then Corr Con as fallback
+                    if (root.TryGetProperty("Soln Conc", out var solnConcElement))
+                    {
+                        if (solnConcElement.ValueKind == JsonValueKind.Number)
+                            concValue = solnConcElement.GetDecimal();
+                        else if (solnConcElement.ValueKind == JsonValueKind.String &&
+                                 decimal.TryParse(solnConcElement.GetString(), out var parsed))
+                            concValue = parsed;
+                    }
+                    
+                    if (!concValue.HasValue && root.TryGetProperty("Corr Con", out var corrConElement))
+                    {
+                        if (corrConElement.ValueKind == JsonValueKind.Number)
+                            concValue = corrConElement.GetDecimal();
+                        else if (corrConElement.ValueKind == JsonValueKind.String &&
+                                 decimal.TryParse(corrConElement.GetString(), out var parsed))
+                            concValue = parsed;
+                    }
+
+                    // Python filters: str(x).replace('.', '', 1).isdigit() - positive numbers only
+                    if (concValue.HasValue && concValue.Value > 0)
+                    {
+                        if (!elementValues.ContainsKey(element))
+                            elementValues[element] = new List<decimal>();
+                        elementValues[element].Add(concValue.Value);
+                    }
+                }
+                catch (JsonException)
+                {
+                    continue;
+                }
+            }
+
+            // Calculate min/max for each element
+            foreach (var (element, values) in elementValues)
+            {
+                if (!values.Any()) continue;
+
+                var min = values.Min();
+                var max = values.Max();
+                calibrationRanges[element] = new CalibrationRange(
+                    element,
+                    min,
+                    max,
+                    $"[{min:F2} to {max:F2}]"
+                );
+            }
+
+            _logger.LogInformation("Calculated calibration ranges for {Count} elements in project {ProjectId}",
+                calibrationRanges.Count, projectId);
+
+            return Result<Dictionary<string, CalibrationRange>>.Success(calibrationRanges);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to calculate calibration ranges for project {ProjectId}", projectId);
+            return Result<Dictionary<string, CalibrationRange>>.Fail($"Failed to calculate calibration ranges: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Select best wavelength for each base element per row
+    /// Based on Python report.py select_best_wavelength_for_row()
+    /// 
+    /// Algorithm:
+    /// 1. Group elements by base name (e.g., "Fe 239.562", "Fe 238.204" → base = "Fe")
+    /// 2. For each row and base element, select the wavelength where:
+    ///    a. Concentration is within calibration range (preferred)
+    ///    b. If none in range, select the one closest to the range
+    /// </summary>
+    public async Task<Result<BestWavelengthResult>> SelectBestWavelengthsAsync(BestWavelengthRequest request)
+    {
+        try
+        {
+            // Get calibration ranges first
+            var calRangesResult = await GetCalibrationRangesAsync(request.ProjectId);
+            if (!calRangesResult.Succeeded)
+                return Result<BestWavelengthResult>.Fail(calRangesResult.Messages.FirstOrDefault() ?? "Failed to get calibration ranges");
+
+            var calibrationRanges = calRangesResult.Data!;
+
+            // Get pivot data
+            var pivotRequest = new AdvancedPivotRequest(
+                request.ProjectId,
+                SelectedSolutionLabels: request.SelectedSolutionLabels,
+                PageSize: 10000
+            );
+            var pivotResult = await _pivotService.GetAdvancedPivotTableAsync(pivotRequest);
+            if (!pivotResult.Succeeded)
+                return Result<BestWavelengthResult>.Fail(pivotResult.Messages.FirstOrDefault() ?? "Failed to get pivot data");
+
+            var pivotData = pivotResult.Data!;
+
+            // Group elements by base name (extract base element from column names)
+            var baseElements = GroupElementsByBase(pivotData.Columns);
+
+            // Get concentration data from raw rows
+            var concentrations = await GetConcentrationData(request.ProjectId, request.UseConcentration);
+
+            // Select best wavelength for each row and base element
+            var bestWavelengthsPerRow = new Dictionary<int, Dictionary<string, string>>();
+            var selectedColumns = new List<string> { "Solution Label" };
+
+            for (int rowIndex = 0; rowIndex < pivotData.Rows.Count; rowIndex++)
+            {
+                var row = pivotData.Rows[rowIndex];
+                bestWavelengthsPerRow[rowIndex] = new Dictionary<string, string>();
+
+                foreach (var (baseElement, wavelengths) in baseElements)
+                {
+                    var bestWavelength = SelectBestWavelengthForRow(
+                        row.SolutionLabel,
+                        baseElement,
+                        wavelengths,
+                        calibrationRanges,
+                        concentrations
+                    );
+
+                    if (bestWavelength != null)
+                    {
+                        bestWavelengthsPerRow[rowIndex][baseElement] = bestWavelength;
+                        if (!selectedColumns.Contains(bestWavelength))
+                            selectedColumns.Add(bestWavelength);
+                    }
+                }
+            }
+
+            var result = new BestWavelengthResult(
+                calibrationRanges,
+                bestWavelengthsPerRow,
+                baseElements,
+                selectedColumns
+            );
+
+            _logger.LogInformation("Selected best wavelengths for {RowCount} rows, {BaseCount} base elements",
+                pivotData.Rows.Count, baseElements.Count);
+
+            return Result<BestWavelengthResult>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to select best wavelengths for project {ProjectId}", request.ProjectId);
+            return Result<BestWavelengthResult>.Fail($"Failed to select best wavelengths: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Group element columns by base element name
+    /// E.g., "Fe 239.562", "Fe 238.204" → "Fe" → ["Fe 239.562", "Fe 238.204"]
+    /// </summary>
+    private Dictionary<string, List<string>> GroupElementsByBase(List<string> columns)
+    {
+        var baseElements = new Dictionary<string, List<string>>();
+
+        foreach (var col in columns)
+        {
+            if (col == "Solution Label") continue;
+
+            // Extract base element (first word before space or number)
+            var parts = col.Split(' ', '_');
+            var baseElement = parts[0];
+
+            // Remove trailing _1, _2 if present (from repeats)
+            if (baseElement.Contains("_"))
+            {
+                var underscoreIndex = baseElement.LastIndexOf('_');
+                if (underscoreIndex > 0 && int.TryParse(baseElement[(underscoreIndex + 1)..], out _))
+                {
+                    baseElement = baseElement[..underscoreIndex];
+                }
+            }
+
+            if (!baseElements.ContainsKey(baseElement))
+                baseElements[baseElement] = new List<string>();
+
+            baseElements[baseElement].Add(col);
+        }
+
+        return baseElements;
+    }
+
+    /// <summary>
+    /// Get concentration data (Soln Conc or Corr Con) for all samples
+    /// </summary>
+    private async Task<Dictionary<(string SolutionLabel, string Element), decimal>> GetConcentrationData(
+        Guid projectId, bool useSolnConc)
+    {
+        var result = new Dictionary<(string SolutionLabel, string Element), decimal>();
+        var columnName = useSolnConc ? "Soln Conc" : "Corr Con";
+
+        var rawRows = await _db.RawDataRows
+            .AsNoTracking()
+            .Where(r => r.ProjectId == projectId)
+            .ToListAsync();
+
+        foreach (var row in rawRows)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(row.ColumnData);
+                var root = doc.RootElement;
+
+                // Only process Samp type
+                if (root.TryGetProperty("Type", out var typeElement) &&
+                    typeElement.GetString() != "Samp" && typeElement.GetString() != "Sample")
+                    continue;
+
+                if (!root.TryGetProperty("Solution Label", out var labelElement))
+                    continue;
+                var solutionLabel = labelElement.GetString();
+
+                if (!root.TryGetProperty("Element", out var elementElement))
+                    continue;
+                var element = elementElement.GetString();
+
+                if (string.IsNullOrEmpty(solutionLabel) || string.IsNullOrEmpty(element))
+                    continue;
+
+                if (!root.TryGetProperty(columnName, out var concElement))
+                    continue;
+
+                decimal? conc = null;
+                if (concElement.ValueKind == JsonValueKind.Number)
+                    conc = concElement.GetDecimal();
+                else if (concElement.ValueKind == JsonValueKind.String &&
+                         decimal.TryParse(concElement.GetString(), out var parsed))
+                    conc = parsed;
+
+                if (conc.HasValue)
+                {
+                    result[(solutionLabel, element)] = conc.Value;
+                }
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Select the best wavelength for a base element in a specific row
+    /// Based on Python report.py select_best_wavelength_for_row()
+    /// </summary>
+    private string? SelectBestWavelengthForRow(
+        string solutionLabel,
+        string baseElement,
+        List<string> wavelengths,
+        Dictionary<string, CalibrationRange> calibrationRanges,
+        Dictionary<(string SolutionLabel, string Element), decimal> concentrations)
+    {
+        if (!wavelengths.Any())
+            return null;
+
+        var validWavelengths = new List<(string Wavelength, decimal Conc, decimal Distance)>();
+        var outOfRangeWavelengths = new List<(string Wavelength, decimal Conc, decimal Distance)>();
+
+        foreach (var wl in wavelengths)
+        {
+            // Get element name (remove _1, _2 suffixes)
+            var elementName = wl;
+            var underscoreIndex = wl.LastIndexOf('_');
+            if (underscoreIndex > 0 && int.TryParse(wl[(underscoreIndex + 1)..], out _))
+            {
+                elementName = wl[..underscoreIndex];
+            }
+
+            // Get concentration for this solution label and element
+            if (!concentrations.TryGetValue((solutionLabel, elementName), out var conc))
+                continue;
+
+            // Get calibration range
+            if (!calibrationRanges.TryGetValue(elementName, out var calRange))
+            {
+                // No calibration range, consider it valid
+                validWavelengths.Add((wl, conc, 0));
+                continue;
+            }
+
+            // Check if concentration is within calibration range
+            if (calRange.Min <= conc && conc <= calRange.Max)
+            {
+                validWavelengths.Add((wl, conc, 0));
+            }
+            else
+            {
+                // Calculate distance from range
+                var distance = Math.Min(Math.Abs(conc - calRange.Min), Math.Abs(conc - calRange.Max));
+                outOfRangeWavelengths.Add((wl, conc, distance));
+            }
+        }
+
+        // Select best wavelength
+        if (validWavelengths.Count == 1)
+        {
+            return validWavelengths[0].Wavelength;
+        }
+        else if (validWavelengths.Any() || outOfRangeWavelengths.Any())
+        {
+            // Combine and select the one with minimum distance
+            var allCandidates = validWavelengths.Concat(outOfRangeWavelengths);
+            return allCandidates.OrderBy(x => x.Distance).First().Wavelength;
+        }
+
+        return wavelengths.FirstOrDefault();
+    }
+
+    #endregion
 }

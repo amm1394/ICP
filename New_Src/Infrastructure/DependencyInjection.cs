@@ -34,7 +34,7 @@ public static class DependencyInjection
 
         // Processing services
         services.AddScoped<IProcessingService, ProcessingService>();
-        services.AddScoped<IRowProcessor, Processors.ComputeStatisticsProcessor>();
+        services.AddScoped<IRowProcessor, ComputeStatisticsProcessor>();
 
         // CRM Service
         services.AddScoped<ICrmService, CrmService>();
@@ -59,6 +59,9 @@ public static class DependencyInjection
 
         // ChangeLog Service
         services.AddScoped<IChangeLogService, ChangeLogService>();
+
+        // Version Service (Project Version Tree)
+        services.AddScoped<IVersionService, VersionService>();
 
         // Cleanup hosted service
         services.AddSingleton<CleanupHostedService>();

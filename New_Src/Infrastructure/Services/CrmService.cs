@@ -438,19 +438,20 @@ public class CrmService : ICrmService
     /// <summary>
     /// Find CRM match in solution label using patterns. 
     /// Matches logic from Python: is_crm_label()
+    /// Python pattern: rf'(?i)(?:(?:^|(?<=\s))(?:CRM|OREAS)?\s*{crm_id}(?:[a-zA-Z0-9]{0,2})?\b)'
     /// </summary>
     private static string? FindCrmMatch(string label, List<string> patterns)
     {
         if (string.IsNullOrWhiteSpace(label))
             return null;
 
-        label = label.Trim();
+        var labelLower = label.Trim().ToLower();
 
         foreach (var pattern in patterns)
         {
-            // Simple pattern: look for CRM/OREAS followed by the pattern number
-            // Examples: "OREAS 258", "CRM258", "258a", "OREAS-258"
-            var regexPattern = $@"(?:CRM|OREAS)? [\s\-]*({Regex.Escape(pattern)}[a-zA-Z0-9]{{0,2}})\b";
+            // Python-compatible pattern: rf'(?i)(?:(?:^|(?<=\s))(?:CRM|OREAS)?\s*{crm_id}(?:[a-zA-Z0-9]{0,2})?\b)'
+            // Match: "OREAS 258", "CRM258", "258a", "oreas-258", "258", " 258b"
+            var regexPattern = $@"(?:^|(?<=\s))(?:CRM|OREAS)?[\s\-_]*({Regex.Escape(pattern)}(?:[a-zA-Z0-9]{{0,2}})?)\b";
 
             try
             {
@@ -464,7 +465,7 @@ public class CrmService : ICrmService
             catch
             {
                 // If regex fails, try simple contains
-                if (label.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                if (labelLower.Contains(pattern.ToLower()))
                 {
                     return pattern;
                 }
@@ -476,15 +477,39 @@ public class CrmService : ICrmService
 
     /// <summary>
     /// Extract element symbol from column name. 
-    /// E.g., "Fe 238. 204" -> "Fe", "Cu_1" -> "Cu"
+    /// Python equivalent: col.split('_')[0].strip()
+    /// E.g., "Fe_ppm" -> "Fe", "Fe 238.204" -> "Fe", "Cu_1" -> "Cu"
     /// </summary>
     private static string? ExtractElementSymbol(string columnName)
     {
         if (string.IsNullOrWhiteSpace(columnName))
             return null;
 
-        // Match element symbols (1-2 letters, first uppercase)
-        var match = Regex.Match(columnName, @"^([A-Z][a-z]?)");
+        columnName = columnName.Trim();
+
+        // Python approach: split by underscore first
+        // col.split('_')[0].strip()
+        var underscoreParts = columnName.Split('_');
+        var baseName = underscoreParts[0].Trim();
+
+        // If the base name contains space (like "Fe 238.204"), take first part
+        var spaceParts = baseName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (spaceParts.Length > 0)
+        {
+            baseName = spaceParts[0].Trim();
+        }
+
+        // Validate it looks like an element symbol (1-3 letters, starts with uppercase)
+        if (!string.IsNullOrEmpty(baseName) && 
+            baseName.Length <= 3 && 
+            char.IsUpper(baseName[0]) &&
+            baseName.All(c => char.IsLetter(c)))
+        {
+            return baseName;
+        }
+
+        // Fallback: try regex for element symbol pattern
+        var match = Regex.Match(columnName, @"^([A-Z][a-z]{0,2})");
         return match.Success ? match.Groups[1].Value : null;
     }
 

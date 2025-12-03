@@ -37,4 +37,16 @@ public interface IReportService
     /// Generate HTML report
     /// </summary>
     Task<Result<string>> GenerateHtmlReportAsync(Guid projectId, ReportOptions? options = null);
+
+    /// <summary>
+    /// Calculate calibration ranges for each element/wavelength
+    /// Based on Python report.py logic: min/max from Blk data Soln Conc
+    /// </summary>
+    Task<Result<Dictionary<string, CalibrationRange>>> GetCalibrationRangesAsync(Guid projectId);
+
+    /// <summary>
+    /// Select best wavelength for each base element per row
+    /// Based on Python report.py select_best_wavelength_for_row()
+    /// </summary>
+    Task<Result<BestWavelengthResult>> SelectBestWavelengthsAsync(BestWavelengthRequest request);
 }

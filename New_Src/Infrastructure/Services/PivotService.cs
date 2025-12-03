@@ -329,8 +329,11 @@ public class PivotService : IPivotService
                 if (string.IsNullOrWhiteSpace(solutionLabel)) continue;
 
                 // Get Type - only process "Samp" or "Sample"
+                // Python equivalent (pivot_creator.py line 21):
+                // df_filtered = df[df['Type'].isin(['Samp', 'Sample'])].copy()
+                // Note: Empty/null Type rows are EXCLUDED in Python
                 var type = GetStringValue(rowData, "Type");
-                if (!string.IsNullOrEmpty(type) && type != "Samp" && type != "Sample")
+                if (type != "Samp" && type != "Sample")
                     continue;
 
                 // Get Element name
@@ -518,8 +521,10 @@ public class PivotService : IPivotService
                 var solutionLabel = GetSolutionLabel(rawRow, rowData);
                 if (string.IsNullOrWhiteSpace(solutionLabel)) continue;
 
+                // Python equivalent (pivot_creator.py line 21):
+                // df_filtered = df[df['Type'].isin(['Samp', 'Sample'])].copy()
                 var type = GetStringValue(rowData, "Type");
-                if (!string.IsNullOrEmpty(type) && type != "Samp" && type != "Sample")
+                if (type != "Samp" && type != "Sample")
                     continue;
 
                 var element = GetStringValue(rowData, "Element");

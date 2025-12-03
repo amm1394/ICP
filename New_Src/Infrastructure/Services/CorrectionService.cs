@@ -922,7 +922,9 @@ public class CorrectionService : ICorrectionService
                             kvp.Value.ValueKind == JsonValueKind.Number)
                         {
                             var originalValue = kvp.Value.GetDecimal();
-                            var correctedValue = (originalValue + settings.Blank) * settings.Scale;
+                            // Python formula (pivot_plot_dialog.py line 617):
+                            // corrected_value = (value - blank) * scale
+                            var correctedValue = (originalValue - settings.Blank) * settings.Scale;
                             newDict[kvp.Key] = correctedValue;
                             modified = true;
 

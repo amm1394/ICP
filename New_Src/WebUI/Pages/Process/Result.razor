@@ -271,8 +271,9 @@
 
         try
         {
-            var request = new PivotRequest { ProjectId = _projectId.Value, PageSize = 10000 };
-            var result = await PivotService.GetPivotTableAsync(request);
+            // Use Advanced Pivot for Python-compatible duplicate handling
+            var request = new AdvancedPivotRequest(ProjectId: _projectId.Value, PageSize: 10000);
+            var result = await PivotService.GetAdvancedPivotTableAsync(request);
             if (result.Succeeded && result.Data != null)
             {
                 var elements = await PivotService.GetElementsAsync(_projectId.Value);
@@ -346,7 +347,7 @@
         _pagedRows = filtered.ToList();
     }
 
-    private string DetermineSampleType(PivotRowDto row)
+    private string DetermineSampleType(AdvancedPivotRowDto row)
     {
         var label = row.SolutionLabel ?? "";
         
@@ -369,7 +370,7 @@
         return "Sample";
     }
 
-    private bool DetermineIfBad(PivotRowDto row)
+    private bool DetermineIfBad(AdvancedPivotRowDto row)
     {
         if (row.Values.TryGetValue("IsBad", out var isBad) && isBad.HasValue && isBad.Value == 1) return true;
         if (row.Values.TryGetValue("BadWeight", out var bw) && bw.HasValue && bw.Value == 1) return true;

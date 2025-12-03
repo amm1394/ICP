@@ -161,12 +161,28 @@ namespace Infrastructure.Services
                     CreatedAt = DateTime.UtcNow
                 };
 
+                // Get parent state (latest active or most recent)
+                var parentState = await _db.Set<ProjectState>()
+                    .Where(s => s.ProjectId == projectId)
+                    .OrderByDescending(s => s.IsActive)
+                    .ThenByDescending(s => s.Timestamp)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                // Get next version number
+                var maxVersion = await _db.Set<ProjectState>()
+                    .Where(s => s.ProjectId == projectId)
+                    .MaxAsync(s => (int?)s.VersionNumber, cancellationToken) ?? 0;
+
                 var state = new ProjectState
                 {
                     ProjectId = projectId,
+                    ParentStateId = parentState?.StateId,
+                    VersionNumber = maxVersion + 1,
+                    ProcessingType = ProcessingTypes.Import, // Default, should be passed from caller
                     Data = snapshotJson,
                     Description = "Auto-generated summary",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    IsActive = true
                 };
 
                 // Use execution strategy for retry-safe transactions
@@ -177,6 +193,11 @@ namespace Infrastructure.Services
                     await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
                     try
                     {
+                        // Deactivate all previous versions
+                        await _db.Set<ProjectState>()
+                            .Where(s => s.ProjectId == projectId && s.IsActive)
+                            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false), cancellationToken);
+
                         await _db.Set<ProcessedData>().AddAsync(processed, cancellationToken);
                         await _db.Set<ProjectState>().AddAsync(state, cancellationToken);
 
@@ -190,8 +211,8 @@ namespace Infrastructure.Services
                         await _db.SaveChangesAsync(cancellationToken);
                         await tx.CommitAsync(cancellationToken);
 
-                        _logger.LogInformation("Processed project {ProjectId}: ProcessedId={ProcessedId}, ProjectStateId={StateId}",
-                            projectId, processed.ProcessedId, state.StateId);
+                        _logger.LogInformation("Processed project {ProjectId}: ProcessedId={ProcessedId}, ProjectStateId={StateId}, Version={Version}",
+                            projectId, processed.ProcessedId, state.StateId, state.VersionNumber);
 
                         return ProcessingResult.Success(state.StateId, Array.Empty<string>());
                     }

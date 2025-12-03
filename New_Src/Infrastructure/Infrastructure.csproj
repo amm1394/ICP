@@ -31,4 +31,8 @@
 		<!-- مهم: برای IProjectPersistenceService -->
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="Migrations\" />
+	</ItemGroup>
+
 </Project>
