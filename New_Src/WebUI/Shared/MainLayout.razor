@@ -22,9 +22,10 @@ else
 {
     <MudLayout>
         <!-- Top AppBar -->
-        <MudAppBar Elevation="1" Color="Color.Primary" Fixed="true">
+        <MudAppBar Elevation="1" Class="header-color" Fixed="true">
             <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
-            <MudIcon Icon="@Icons.Material.Filled.Science" Class="me-2" />
+            @* <MudIcon Icon="@Icons.Material.Filled.Science" Class="me-2" /> *@
+            <img src="./Images/logo-RASF1.png" width="30" class="mr-2"/>
             <MudText Typo="Typo.h6" Class="fw-bold">RASF ICP Processing</MudText>
             <MudSpacer />
             <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
@@ -54,7 +55,7 @@ else
                 
                 <MudDivider Class="my-2" />
                 
-                <MudNavGroup Title="Data" Icon="@Icons.Material.Filled.TableChart" Expanded="true">
+                <MudNavGroup Title="Data" Icon="@Icons.Material.Filled.TableChart" Expanded="false">
                     <MudNavLink Href="/pivot" Icon="@Icons.Material.Filled.GridOn" Match="NavLinkMatch.All">
                         Pivot Table
                     </MudNavLink>

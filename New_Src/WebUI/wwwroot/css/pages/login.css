@@ -5,7 +5,7 @@
 
 .login-container {
     min-height: 100vh;
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    background: var(--bg-gradient-light);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -17,19 +17,18 @@
     width: 100%;
     max-width: 900px;
     min-height: 520px;
-    /*    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);*/
     -webkit-box-shadow: 8px 8px 24px -20px rgba(66, 68, 90, 1);
     -moz-box-shadow: 8px 8px 24px -20px rgba(66, 68, 90, 1);
     box-shadow: 8px 8px 24px -20px rgba(66, 68, 90, 1);
     border-radius: 20px;
     overflow: hidden;
-    background: white;
+    background: #fff;
 }
 
 .login-logo-panel {
     flex: 0 0 42%;
-    background: #1C6397;
-    background: linear-gradient(340deg,rgba(28, 99, 151, 1) 13%, rgba(76, 194, 230, 1) 97%);
+    background: var(--secondary-color);
+    background: var(--bg-gradient-blue);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -45,11 +44,11 @@
 }
 
 .login-logo-subtitle {
-    color: #ffff;
+    color: var(--text-white);
     font-size: 1.1rem;
     margin-top: 0.5rem;
     text-align: center;
-    font-weight:700;
+    font-weight: 700;
 }
 
 .login-form-panel {
@@ -58,7 +57,7 @@
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    background: #f8fafc;
+    background: var(--bg-secondary);
     border-radius: 0 20px 20px 0;
 }
 
@@ -69,26 +68,26 @@
 }
 
 .login-welcome-title {
-    font-weight: 800;
-    color: #2c3e50;
+    font-weight: 500;
+    color: var(--text-primary);
     margin-bottom: 2rem;
     font-size: 1.5rem;
 }
 
 .login-btn {
-    background:var(--primary-color);
-    color: white !important;
+    background: var(--bg-blue);
+    color: var(--text-white) !important;
     font-weight: 600 !important;
     height: 56px !important;
     border-radius: 16px !important;
 }
 
     .login-btn:hover {
-        background: linear-gradient(to bottom, #60a5fa, #3b82f6) !important;
+        background: var(--bg-gradient-blue)!important;
     }
 
 .guest-btn {
-    border: 2px solid #94a3b8 !important;
+    border: 2px solid var(--text-muted) !important;
     color: #64748b !important;
     font-weight: 600 !important;
     height: 52px !important;
