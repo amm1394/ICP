@@ -102,6 +102,11 @@ else
         </MudMainContent>
     </MudLayout>
 }
+<style>
+    .mud-nav-link.active .mud-icon-root {
+        color: var(--mud-palette-primary) !important;
+    }
+</style>
 
 @code {
     private bool _drawerOpen = true;
