@@ -7,6 +7,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <Compile Remove="Interface\Authentication\**" />
+	  <EmbeddedResource Remove="Interface\Authentication\**" />
+	  <None Remove="Interface\Authentication\**" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="CsvHelper" Version="33.1.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
 	</ItemGroup>
@@ -14,10 +20,6 @@
 	<ItemGroup>
 		<ProjectReference Include="..\Domain\Domain.csproj" />
 		<ProjectReference Include="..\Shared\Shared.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="Interface\Authentication\" />
 	</ItemGroup>
 
 </Project>

@@ -100,23 +100,66 @@ public class CrmService : ICrmService
     {
         try
         {
-            var query = _db.CrmData.AsNoTracking()
-                .Where(c => c.CrmId.Contains(crmId));
+            // 1. دریافت همه رکوردهای مربوط به این شناسه
+            var query = _db.CrmData.AsNoTracking().Where(c => c.CrmId == crmId);
 
-            if (!string.IsNullOrWhiteSpace(analysisMethod))
+            if (!string.IsNullOrEmpty(analysisMethod))
             {
                 query = query.Where(c => c.AnalysisMethod == analysisMethod);
             }
 
-            var items = await query.ToListAsync();
-            var dtos = items.Select(MapToDto).ToList();
+            var crmRecords = await query.ToListAsync();
 
-            return Result<List<CrmListItemDto>>.Success(dtos);
+            if (!crmRecords.Any())
+                return Result<List<CrmListItemDto>>.Fail($"CRM {crmId} not found");
+
+            // 2. منطق ادغام (Merge Logic)
+            var mergedElements = new Dictionary<string, decimal>();
+
+            // انتخاب رکورد پایه
+            var preferredMethods = new[] { "4-Acid Digestion", "Aqua Regia Digestion" };
+            var primaryRecord = crmRecords
+                .OrderByDescending(c => preferredMethods.Any(pm => c.AnalysisMethod?.Contains(pm) == true))
+                .FirstOrDefault() ?? crmRecords.First();
+
+            foreach (var record in crmRecords)
+            {
+                var elements = ParseElementValues(record.ElementValues);
+                foreach (var kvp in elements)
+                {
+                    if (!mergedElements.ContainsKey(kvp.Key))
+                    {
+                        mergedElements[kvp.Key] = kvp.Value;
+                    }
+                    else
+                    {
+                        if (kvp.Value > mergedElements[kvp.Key])
+                        {
+                            mergedElements[kvp.Key] = kvp.Value;
+                        }
+                    }
+                }
+            }
+
+            // 3. ساخت شیء CrmData (اصلاح شده: حذف فیلدهای اضافی)
+            var mergedEntity = new CrmData
+            {
+                Id = primaryRecord.Id,
+                CrmId = primaryRecord.CrmId,
+                AnalysisMethod = primaryRecord.AnalysisMethod + " (Combined)",
+                ElementValues = System.Text.Json.JsonSerializer.Serialize(mergedElements)
+                // فیلدهای CertDate, Supplier, Unit حذف شدند
+            };
+
+            // 4. تبدیل به DTO
+            var dto = MapToDto(mergedEntity);
+
+            return Result<List<CrmListItemDto>>.Success(new List<CrmListItemDto> { dto });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get CRM by CrmId {CrmId}", crmId);
-            return Result<List<CrmListItemDto>>.Fail($"Failed to get CRM: {ex.Message}");
+            _logger.LogError(ex, "Error getting CRM {CrmId}", crmId);
+            return Result<List<CrmListItemDto>>.Fail(ex.Message);
         }
     }
 
@@ -189,26 +232,57 @@ public class CrmService : ICrmService
                     continue;
 
                 // Check if this row matches a CRM pattern
-                var matchedCrmId = FindCrmMatch(solutionLabel, patterns);
-                if (matchedCrmId == null)
+                var matchedCrmNumber = FindCrmMatch(solutionLabel, patterns);
+                if (matchedCrmNumber == null)
                     continue;
 
-                // 3. Find matching CRM in database
-                var crmData = await _db.CrmData
+                // 3. Find ALL matching CRMs in database and MERGE them
+                // Instead of picking just one, we fetch all rows for this CRM ID (e.g. OREAS 252)
+                var allCrmRecords = await _db.CrmData
                     .AsNoTracking()
-                    .Where(c => c.CrmId.Contains(matchedCrmId))
+                    .Where(c => c.CrmId.Contains(matchedCrmNumber))
                     .ToListAsync();
 
-                if (!crmData.Any())
+                if (!allCrmRecords.Any())
                     continue;
 
-                // Prefer 4-Acid or Aqua Regia methods
-                var preferredMethods = new[] { "4-Acid Digestion", "Aqua Regia Digestion" };
-                var selectedCrm = crmData.FirstOrDefault(c => preferredMethods.Contains(c.AnalysisMethod))
-                                  ?? crmData.First();
+                // --- MERGE LOGIC START ---
+                // We create a unified dictionary of elements taking the Max value found across all methods.
+                // This handles cases where Au is in "Fire Assay" and Cu is in "4-Acid".
+                var mergedCrmElements = new Dictionary<string, decimal>();
+                string finalCrmId = allCrmRecords.First().CrmId; // e.g. "OREAS 252"
+
+                // Identify the "Best" method name just for display purposes
+                var preferredMethods = new[] { "4-Acid Digestion", "Aqua Regia Digestion", "Fire Assay" };
+                var bestRecord = allCrmRecords
+                    .OrderByDescending(c => preferredMethods.Any(pm => c.AnalysisMethod?.Contains(pm) == true))
+                    .ThenByDescending(c => c.ElementValues.Length) // Prefer record with more data
+                    .First();
+                string displayMethod = bestRecord.AnalysisMethod ?? "Combined";
+
+                foreach (var record in allCrmRecords)
+                {
+                    var elements = ParseElementValues(record.ElementValues);
+                    foreach (var kvp in elements)
+                    {
+                        // If element exists, take the larger value (assuming max is total digestion)
+                        // Or if it's 0 in one and valid in another, take the valid one.
+                        if (!mergedCrmElements.ContainsKey(kvp.Key))
+                        {
+                            mergedCrmElements[kvp.Key] = kvp.Value;
+                        }
+                        else
+                        {
+                            if (kvp.Value > mergedCrmElements[kvp.Key])
+                            {
+                                mergedCrmElements[kvp.Key] = kvp.Value;
+                            }
+                        }
+                    }
+                }
+                // --- MERGE LOGIC END ---
 
                 // 4. Calculate differences
-                var crmElements = ParseElementValues(selectedCrm.ElementValues);
                 var differences = new List<ElementDiffDto>();
 
                 foreach (var kvp in rowData)
@@ -216,7 +290,6 @@ public class CrmService : ICrmService
                     if (kvp.Key == "Solution Label" || kvp.Key == "SolutionLabel" || kvp.Key == "SampleId")
                         continue;
 
-                    // Extract element symbol (e.g., "Fe 238. 204" -> "Fe")
                     var elementSymbol = ExtractElementSymbol(kvp.Key);
                     if (string.IsNullOrEmpty(elementSymbol))
                         continue;
@@ -235,23 +308,27 @@ public class CrmService : ICrmService
                         projectValue = d3;
                     }
 
-                    // Get CRM value
+                    // Get CRM value from MERGED dictionary
                     decimal? crmValue = null;
-                    if (crmElements.TryGetValue(elementSymbol, out var cv))
+                    if (mergedCrmElements.TryGetValue(elementSymbol, out var cv))
                         crmValue = cv;
 
-                    // Calculate diff percent: ((crm - project) / crm) * 100
                     decimal? diffPercent = null;
                     bool isInRange = false;
 
                     if (projectValue.HasValue && crmValue.HasValue && crmValue.Value != 0)
                     {
-                        diffPercent = ((crmValue.Value - projectValue.Value) / crmValue.Value) * 100;
+                        diffPercent = ((projectValue.Value - crmValue.Value) / crmValue.Value) * 100; // Corrected: (Measured - Ref) / Ref
+
+                        // Check range (using absolute value logic if needed, or simple min/max)
+                        // Assuming request.Min/Max are like -10 and 10
                         isInRange = diffPercent >= request.MinDiffPercent && diffPercent <= request.MaxDiffPercent;
                     }
 
+                    // Only add if we have data to compare (or if user wants to see all)
+                    // Here we add everything found in the sample
                     differences.Add(new ElementDiffDto(
-                        kvp.Key,
+                        elementSymbol, // Use clean symbol as key
                         projectValue,
                         crmValue,
                         diffPercent.HasValue ? Math.Round(diffPercent.Value, 2) : null,
@@ -263,8 +340,8 @@ public class CrmService : ICrmService
                 {
                     results.Add(new CrmDiffResultDto(
                         solutionLabel,
-                        selectedCrm.CrmId,
-                        selectedCrm.AnalysisMethod ?? "Unknown",
+                        finalCrmId,
+                        displayMethod,
                         differences
                     ));
                 }

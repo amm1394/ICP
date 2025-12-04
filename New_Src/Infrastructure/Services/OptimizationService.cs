@@ -546,30 +546,81 @@ public class OptimizationService : IOptimizationService
     {
         var rawRows = await _db.RawDataRows.AsNoTracking().Where(r => r.ProjectId == projectId).ToListAsync();
         var result = new List<RmSampleData>();
-        // Match CRM/OREAS/etc. at start, optionally followed by numbers/spaces/letters
-        // Examples: "CRM 252  y", "CRM BLANK  R", "OREAS 100a", "CRM258"
-        var rmPattern = new System.Text.RegularExpressions.Regex(@"^(OREAS|SRM|CRM|NIST|BCR|TILL|GBW)[\s\-_]*(\d+|BLANK)?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // الگویی برای پیدا کردن نام‌های استاندارد (CRM, OREAS, RM, PAR, etc.)
+        var rmPattern = new System.Text.RegularExpressions.Regex(@"^(OREAS|SRM|CRM|NIST|BCR|TILL|GBW|RM|PAR)[\s\-_]*(\d+|BLANK)?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        // الگویی برای استخراج نام عنصر تمیز (Ag 328 -> Ag)
+        var elementPattern = new System.Text.RegularExpressions.Regex(@"([A-Za-z]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         foreach (var row in rawRows)
         {
             try
             {
-                // Use SampleId field directly as the label (set during import)
                 var solutionLabel = row.SampleId ?? "";
-                if (string.IsNullOrEmpty(solutionLabel) || !rmPattern.IsMatch(solutionLabel)) continue;
+
+                // چک کردن اینکه آیا نمونه استاندارد است؟ (شامل لیست شما هم می‌شود)
+                // اگر لیبل خالی بود یا جزو پترن‌ها نبود، رد شود
+                if (string.IsNullOrEmpty(solutionLabel) || !rmPattern.IsMatch(solutionLabel))
+                {
+                    // یک شانس دیگر: شاید کاربر دستی لیبل "252 par" زده باشد که پترن بالا نگیرد
+                    // می‌توانید شرط‌های خاص خود را اینجا اضافه کنید
+                    if (!solutionLabel.Contains("par", StringComparison.OrdinalIgnoreCase) &&
+                        !solutionLabel.Contains("RM", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                }
 
                 var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(row.ColumnData);
                 if (data == null) continue;
 
                 var values = new Dictionary<string, decimal?>();
+
+                // --- منطق جدید برای فایل‌های OES (Long Format) ---
+                // ۱. پیدا کردن نام عنصر از ستون Element
+                string cleanElement = string.Empty;
+                if (data.TryGetValue("Element", out var elemVal) && elemVal.ValueKind == JsonValueKind.String)
+                {
+                    var rawElement = elemVal.GetString(); // e.g. "Ag 328.068"
+                    var match = elementPattern.Match(rawElement ?? "");
+                    if (match.Success)
+                    {
+                        cleanElement = match.Groups[1].Value; // "Ag"
+                    }
+                }
+
+                // ۲. پیدا کردن مقدار غلظت (اولویت با Corr Con است)
+                decimal? concentration = null;
+                if (data.TryGetValue("Corr Con", out var cc))
+                {
+                    if (cc.ValueKind == JsonValueKind.Number) concentration = cc.GetDecimal();
+                    else if (cc.ValueKind == JsonValueKind.String && decimal.TryParse(cc.GetString(), out var d)) concentration = d;
+                }
+
+                if (concentration == null && data.TryGetValue("Soln Conc", out var sc))
+                {
+                    if (sc.ValueKind == JsonValueKind.Number) concentration = sc.GetDecimal();
+                    else if (sc.ValueKind == JsonValueKind.String && decimal.TryParse(sc.GetString(), out var d)) concentration = d;
+                }
+
+                // ۳. اگر عنصر و غلظت داشتیم، به عنوان یک ستون مجازی اضافه کن
+                // این باعث می‌شود سیستم فکر کند ستونی به نام "Ag" وجود دارد
+                if (!string.IsNullOrEmpty(cleanElement) && concentration.HasValue)
+                {
+                    // مثلاً: values["Ag"] = 0.009
+                    values[cleanElement] = concentration.Value;
+                }
+                // ---------------------------------------------------
+
+                // کپی کردن سایر ستون‌ها (برای اطمینان)
                 foreach (var kvp in data)
                 {
-                    if (kvp.Key == "Solution Label") continue;
+                    if (kvp.Key == "Solution Label" || kvp.Key == "Element") continue;
+
                     if (kvp.Value.ValueKind == JsonValueKind.Number)
                         values[kvp.Key] = kvp.Value.GetDecimal();
                     else if (kvp.Value.ValueKind == JsonValueKind.String && decimal.TryParse(kvp.Value.GetString(), out var val))
                         values[kvp.Key] = val;
                 }
+
                 result.Add(new RmSampleData(solutionLabel, values));
             }
             catch { }
@@ -587,7 +638,30 @@ public class OptimizationService : IOptimizationService
             try
             {
                 var values = JsonSerializer.Deserialize<Dictionary<string, decimal>>(crm.ElementValues);
-                if (values != null) result[crm.CrmId] = values;
+                if (values == null) continue;
+
+                // اگر این CRM قبلاً اضافه نشده، دیکشنری جدید بساز
+                if (!result.ContainsKey(crm.CrmId))
+                {
+                    result[crm.CrmId] = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                // منطق ادغام: تمام عناصر را چک کن و اگر مقدار بزرگتری بود، جایگزین کن
+                foreach (var kvp in values)
+                {
+                    if (!result[crm.CrmId].ContainsKey(kvp.Key))
+                    {
+                        result[crm.CrmId][kvp.Key] = kvp.Value;
+                    }
+                    else
+                    {
+                        // اگر مقدار جدید بیشتر بود (مثلاً هضم کامل‌تر)، آپدیت کن
+                        if (kvp.Value > result[crm.CrmId][kvp.Key])
+                        {
+                            result[crm.CrmId][kvp.Key] = kvp.Value;
+                        }
+                    }
+                }
             }
             catch { }
         }

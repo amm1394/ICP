@@ -358,10 +358,6 @@ public class ImportService : IImportService
         }
     }
 
-    /// <summary>
-    /// Simple CSV import - reads all columns as-is without special parsing
-    /// Used as fallback when advanced parser returns no rows
-    /// </summary>
     private async Task<Result<AdvancedImportResult>> ImportSimpleCsvAsync(
         Stream fileStream,
         AdvancedImportRequest request,
@@ -382,18 +378,41 @@ public class ImportService : IImportService
             using var reader = new StreamReader(fileStream, System.Text.Encoding.UTF8, leaveOpen: true);
             using var csv = new CsvReader(reader, config);
 
-            // Skip to header row if specified
-            int headerRow = request.HeaderRow ?? 0;
-            for (int i = 0; i < headerRow && csv.Read(); i++) { }
+            // ==========================================
+            //  بخش اصلاح شده (Start of Fix)
+            // ==========================================
 
+            // ابتدا خط اول را می‌خوانیم
             if (!csv.Read())
             {
                 return Result<AdvancedImportResult>.Fail("File is empty or has no header");
             }
 
+            // چک می‌کنیم آیا این خط واقعاً هدر است؟
+            // معیار: وجود کلمات کلیدی مثل "Solution Label" یا "Sample"
+            var rawRecord = csv.Parser.RawRecord;
+            bool looksLikeHeader = !string.IsNullOrEmpty(rawRecord) &&
+                                   (rawRecord.Contains("Solution Label", StringComparison.OrdinalIgnoreCase) ||
+                                    rawRecord.Contains("Sample", StringComparison.OrdinalIgnoreCase) ||
+                                    rawRecord.Contains("Element", StringComparison.OrdinalIgnoreCase));
+
+            // اگر خط اول هدر نبود (مثل فایل‌های OES که متادیتا دارند)، یک خط دیگر جلو می‌رویم
+            if (!looksLikeHeader)
+            {
+                if (!csv.Read())
+                {
+                    return Result<AdvancedImportResult>.Fail("File has metadata but no header row found");
+                }
+            }
+
+            // حالا هدر را می‌خوانیم
             csv.ReadHeader();
+            // ==========================================
+            //  پایان بخش اصلاح شده (End of Fix)
+            // ==========================================
+
             var headers = csv.HeaderRecord ?? Array.Empty<string>();
-            
+
             if (headers.Length == 0)
             {
                 return Result<AdvancedImportResult>.Fail("No headers found in file");
@@ -408,7 +427,8 @@ public class ImportService : IImportService
             var warnings = new List<ImportWarning>();
 
             // Find SampleID column (various possible names)
-            var sampleIdColumn = headers.FirstOrDefault(h => 
+            var sampleIdColumn = headers.FirstOrDefault(h =>
+                h.Equals("Solution Label", StringComparison.OrdinalIgnoreCase) || // Added Solution Label explicitly
                 h.Equals("SampleID", StringComparison.OrdinalIgnoreCase) ||
                 h.Equals("Sample_ID", StringComparison.OrdinalIgnoreCase) ||
                 h.Equals("SampleId", StringComparison.OrdinalIgnoreCase) ||
@@ -432,7 +452,7 @@ public class ImportService : IImportService
                     foreach (var header in headers)
                     {
                         var value = csv.GetField(header);
-                        
+
                         if (sampleIdColumn != null && header.Equals(sampleIdColumn, StringComparison.OrdinalIgnoreCase))
                         {
                             sampleId = value;
@@ -521,8 +541,8 @@ public class ImportService : IImportService
                 saved,
                 rowNumber - saved,
                 FileFormat.TabularCsv,
-                new List<string>(), // ImportedSolutionLabels - empty for simple import
-                headers.ToList(),   // ImportedElements - use headers as elements
+                new List<string>(),
+                headers.ToList(),
                 warnings
             ));
         }
@@ -532,7 +552,6 @@ public class ImportService : IImportService
             return Result<AdvancedImportResult>.Fail($"Import failed: {ex.Message}");
         }
     }
-
     public async Task<Result<AdvancedImportResult>> ImportAdditionalAsync(
         Guid projectId,
         Stream fileStream,

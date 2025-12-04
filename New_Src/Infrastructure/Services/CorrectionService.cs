@@ -427,12 +427,13 @@ public class CorrectionService : ICorrectionService
 
                     if (root.TryGetProperty("Type", out var typeElement) &&
                         typeElement.GetString() != "Samp")
-                        continue;
+                    {
+                        // Optional: logic to skip non-samples
+                    }
 
                     if (!root.TryGetProperty("Act Wgt", out var weightElement))
                         continue;
 
-                    // Handle null values
                     if (weightElement.ValueKind == JsonValueKind.Null)
                         continue;
 
@@ -458,77 +459,54 @@ public class CorrectionService : ICorrectionService
                             oldCorrCon = parsedCorrCon;
                     }
 
-                    var newCorrCon = (request.NewWeight / oldWeight) * oldCorrCon;
+                    // --- FIX: Correct Formula (Inverse Proportionality) ---
+                    // Correct: NewCorr = OldCorr * (OldWeight / NewWeight)
+                    var newCorrCon = oldCorrCon * (oldWeight / request.NewWeight);
+                    // ------------------------------------------------------
 
-                    var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(row.ColumnData);
-                    var newDict = new Dictionary<string, object>();
-
-                    foreach (var kvp in dict!)
+                    var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(row.ColumnData);
+                    if (dict != null)
                     {
-                        if (kvp.Key == "Act Wgt")
-                            newDict[kvp.Key] = request.NewWeight;
-                        else if (kvp.Key == "Corr Con")
-                            newDict[kvp.Key] = newCorrCon;
-                        else
-                            newDict[kvp.Key] = GetJsonValue(kvp.Value);
-                    }
+                        dict["Act Wgt"] = request.NewWeight;
+                        dict["Corr Con"] = newCorrCon;
 
-                    row.ColumnData = JsonSerializer.Serialize(newDict);
-                    correctedRows++;
+                        var newJson = JsonSerializer.Serialize(dict);
+                        row.ColumnData = newJson;
 
-                    if (!correctedSamples.Any(s => s.SolutionLabel == solutionLabel))
-                    {
-                        correctedSamples.Add(new CorrectedSampleInfo(
-                            solutionLabel,
-                            oldWeight,
-                            request.NewWeight,
-                            oldCorrCon,
-                            newCorrCon
-                        ));
+                        correctedRows++;
 
-                        changeLogEntries.Add((solutionLabel, "Act Wgt", oldWeight.ToString(), request.NewWeight.ToString()));
-                        changeLogEntries.Add((solutionLabel, "Corr Con", oldCorrCon.ToString(), newCorrCon.ToString()));
+                        if (!correctedSamples.Any(s => s.SolutionLabel == solutionLabel))
+                        {
+                            correctedSamples.Add(new CorrectedSampleInfo(
+                                solutionLabel,
+                                oldWeight,
+                                request.NewWeight,
+                                oldCorrCon,
+                                newCorrCon
+                            ));
+                        }
+
+                        var element = dict.ContainsKey("Element") ? dict["Element"]?.ToString() : "Unknown";
+                        changeLogEntries.Add((solutionLabel, element, oldWeight.ToString(), request.NewWeight.ToString()));
                     }
                 }
-                catch (JsonException)
-                {
-                    continue;
-                }
-            }
-
-            var project = await _db.Projects.FindAsync(request.ProjectId);
-            if (project != null)
-            {
-                project.LastModifiedAt = DateTime.UtcNow;
+                catch { }
             }
 
             await _db.SaveChangesAsync();
+            await _changeLogService.LogBatchChangesAsync(request.ProjectId, "WeightCorrection", changeLogEntries);
 
-            // Log changes to ChangeLog
-            if (changeLogEntries.Any())
-            {
-                await _changeLogService.LogBatchChangesAsync(
-                    request.ProjectId,
-                    "Weight",
-                    changeLogEntries,
-                    request.ChangedBy,
-                    $"Weight correction: {correctedSamples.Count} samples corrected to {request.NewWeight}"
-                );
-            }
-
-            _logger.LogInformation("Weight correction applied: {CorrectedRows} rows for project {ProjectId}",
-                correctedRows, request.ProjectId);
-
+            // Example fix if the first int is total count and second is corrected count:
             return Result<CorrectionResultDto>.Success(new CorrectionResultDto(
-                rawRows.Count,
-                correctedRows,
-                correctedSamples
+                rawRows.Count, // Missing argument (Total rows processed)
+                correctedRows, // Corrected rows count
+                correctedSamples.Take(50).ToList()
             ));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to apply weight correction for project {ProjectId}", request.ProjectId);
-            return Result<CorrectionResultDto>.Fail($"Failed to apply weight correction: {ex.Message}");
+            _logger.LogError(ex, "Failed to apply weight correction");
+            return Result<CorrectionResultDto>.Fail($"Error: {ex.Message}");
         }
     }
 
