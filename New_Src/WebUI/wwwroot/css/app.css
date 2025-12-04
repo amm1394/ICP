@@ -58,6 +58,7 @@
 .color-bg-dark-blue {
     background-color: var(--secondary-color);
     color: #fff;
+    font-weight: 500;
 }
     .color-bg-dark-blue:hover {
         background-color: var(--bg-blue);

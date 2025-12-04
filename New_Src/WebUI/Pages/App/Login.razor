@@ -105,6 +105,7 @@
                                       Required="true"
                                       Immediate="true"
                                       RequiredError="UserName is required"
+                                      Validation="@(new Func<string, string?>(ValidateUsername))"
                                       Class="mb-4" />
 
                         <MudTextField @bind-Value="loginPassword"
@@ -114,6 +115,7 @@
                                       Required="true"
                                       Immediate="true"
                                       RequiredError="Password is required"
+                                      Validation="@(new Func<string, string?>(ValidatePassword))"
                                       Adornment="Adornment.End"
                                       AdornmentIcon="@loginPasswordIcon"
                                       OnAdornmentClick="() => loginPasswordVisible = !loginPasswordVisible"
@@ -122,7 +124,7 @@
 
                         <MudCheckBox @bind-Value="rememberMe"
                                      Label="Remember Me"
-                                     Color="Color.Primary"
+                                   
                                      Size="Size.Small"
                                      Class="mb-4" />
 
@@ -252,7 +254,39 @@
     {
         return !string.IsNullOrWhiteSpace(loginEmail) &&
                loginEmail.Length >= 4 &&
+               !ContainsPersian(loginEmail) &&
                !string.IsNullOrWhiteSpace(loginPassword) &&
-               loginPassword.Length >= 6;
+               loginPassword.Length >= 6 &&
+               !ContainsPersian(loginPassword);
+    }
+
+    // چک کردن متن فارسی
+    private bool ContainsPersian(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        // رنج کاراکترهای فارسی/عربی
+        return text.Any(c => c >= 0x0600 && c <= 0x06FF);
+    }
+
+    // Validation برای Username
+    private string? ValidateUsername(string value)
+    {
+        if (ContainsPersian(value))
+            return "Please use English characters only";
+        if(!string.IsNullOrEmpty(value) && value.Length < 4)
+        {
+            return "Username must be at least 4 characters";
+        }
+        return null;
+    }
+
+    // Validation برای Password
+    private string? ValidatePassword(string value)
+    {
+        if (ContainsPersian(value))
+            return "Please use English characters only";
+        if (!string.IsNullOrEmpty(value) && value.Length < 6)
+            return "Password must be at least 6 characters";
+        return null;
     }
 }
