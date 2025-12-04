@@ -49,7 +49,36 @@
     --sidebar-active-color: #00BCD4;
 
 }
+.color-light-blue{
+    color: var(--accent-color);
+}
+.color-dark-blue {
+    color: var(--primary-color);
+}
+.color-bg-dark-blue {
+    background-color: var(--secondary-color);
+    color: #fff;
+}
+    .color-bg-dark-blue:hover {
+        background-color: var(--bg-blue);
+        color: #000;
+}
+    .color-border{
+        border: 1px solid var(--bg-primary);
+    }
 
+.refresh-crm {
+    color: var(--secondary-color);
+    border: 1px solid var(--secondary-color);
+}
+    .refresh-crm:hover {
+        color: var(--secondary-color);
+        border: 1px solid var(--secondary-color);
+        box-shadow: rgba(0, 188, 212, 0.15) 0px 5px 10px !important;
+        background: #d7f3f7;
+        transform: translateY(-2px);
+        transition: all 0.3s ease-in-out;
+    }
 /* --- Base Styles --- */
 html, body {
     font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -217,12 +246,19 @@ html, body {
 }
 /*Override Style  MudBlazor.min.css Dashboard*/
 
-.mud-button-outlined {
+.box-action {
     color: var(--mud-palette-text-primary);
-    border: 1px solid rgb(232, 232, 232);
+    border: 1px solid rgb(232, 232, 232,0.1);
     padding: 5px 15px;
-    box-shadow: 0px 0px 5px 0 #ddd;
+    border-radius: var(--radius-md) !important;
+    box-shadow: 0px 0px 3px 0 #a1f4ff;
 }
+    .box-action:hover {
+        box-shadow: rgba(0, 188, 212, 0.15) 0px 5px 10px !important;
+        background: #d7f3f7;
+        transform: translateY(-2px);
+        transition: all 0.3s ease-in-out;
+    }
 
 .mud-button-label {
     gap: 10px;
@@ -261,4 +297,17 @@ html, body {
 .mud-drawer.mud-drawer-mini.mud-drawer-pos-left.mud-drawer--closed {
     width: 70px;
 }
+
+/* در app.css */
+.custom-card {
+/*    box-shadow: 0 4px 10px rgba(0, 188, 212, 0.15) !important;*/
+    box-shadow: rgba(0, 188, 212, 0.15) 0px 0px 3px !important;
+    border-radius: var(--radius-md) !important;
+    border: 1px solid rgba(0, 188, 212, 0.1);
+}
+
+    .custom-card:hover {
+        /*        box-shadow: 0 8px 30px rgba(0, 188, 212, 0.2) !important;*/
+        box-shadow: rgba(0, 188, 212, 0.15) 0px 4px 9px !important;
+    }
 

@@ -16,7 +16,7 @@
                 </MudText>
             </div>
             <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
+                       Class="color-bg-dark-blue"
                        StartIcon="@Icons.Material.Filled.Add"
                        OnClick="OpenAddDialog">
                 Add CRM
@@ -50,11 +50,11 @@
             </MudItem>
             <MudItem xs="12" md="4">
                 <MudButton Variant="Variant.Outlined"
-                           Color="Color.Primary"
+                           
                            FullWidth="true"
                            StartIcon="@Icons.Material.Filled.Refresh"
                            OnClick="LoadCrmData"
-                           Class="mt-1"
+                           Class="mt-1 refresh-crm"
                            Style="height: 56px;">
                     Refresh
                 </MudButton>
@@ -108,7 +108,7 @@
                         <div class="d-flex flex-wrap gap-1">
                             @foreach (var el in context.ElementValues.Take(5))
                             {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Primary">@el.Key: @el.Value.ToString("F4")</MudChip>
+                                <MudChip T="string" Size="Size.Small" Class="color-bg-dark-blue">@el.Key: @el.Value.ToString("F4")</MudChip>
                             }
                             @if (context.ElementValues.Count > 5)
                             {
@@ -119,12 +119,12 @@
                     <MudTd>
                         <MudIconButton Icon="@Icons.Material.Filled.Visibility"
                                        Size="Size.Small"
-                                       Color="Color.Info"
+                                       Class="color-light-blue"
                                        OnClick="@(() => ViewCrm(context))"
                                        aria-label="View Details" />
                         <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                        Size="Size.Small"
-                                       Color="Color.Primary"
+                                       Class="color-dark-blue"
                                        OnClick="@(() => EditCrm(context))"
                                        aria-label="Edit" />
                         <MudIconButton Icon="@Icons.Material.Filled.Delete"
@@ -200,7 +200,7 @@
                     </MudGrid>
                 }
                 <MudButton Variant="Variant.Text"
-                           Color="Color.Primary"
+                           Class="color-dark-blue"
                            StartIcon="@Icons.Material.Filled.Add"
                            OnClick="AddElement"
                            Size="Size.Small">
@@ -211,7 +211,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="CloseDialog">Cancel</MudButton>
-        <MudButton Color="Color.Primary"
+        <MudButton Class="color-bg-dark-blue"
                    Variant="Variant.Filled"
                    OnClick="SaveCrm"
                    Disabled="_isSaving">

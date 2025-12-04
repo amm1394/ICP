@@ -28,7 +28,7 @@
 <!-- Stats Cards -->
 <MudGrid Class="mb-4">
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4">
+        <MudPaper Elevation="0" Class="pa-4 custom-card">
             <div class="d-flex justify-space-between align-center">
                 <div>
                     <MudText Typo="Typo.h4" Class="fw-bold result-random-icons">@_totalProjects</MudText>
@@ -41,7 +41,7 @@
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4">
+        <MudPaper Elevation="0" Class="pa-4 custom-card">
             <div class="d-flex justify-space-between align-center">
                 <div>
                     <MudText Typo="Typo.h4" Class="fw-bold result-random-icons">@_samplesAnalyzed</MudText>
@@ -54,7 +54,7 @@
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4">
+        <MudPaper Elevation="0" Class="pa-4 custom-card">
             <div class="d-flex justify-space-between align-center">
                 <div>
                     <MudText Typo="Typo.h4"  Class="fw-bold result-random-icons">@_crmStandards</MudText>
@@ -67,7 +67,7 @@
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4">
+        <MudPaper Elevation="0" Class="pa-4 custom-card">
             <div class="d-flex justify-space-between align-center">
                 <div>
                     <MudText Typo="Typo.h4" Class="fw-bold result-random-icons">@_passRate%</MudText>
@@ -84,7 +84,7 @@
 <MudGrid>
     <!-- Quick Actions -->
     <MudItem xs="12" md="8">
-        <MudPaper Elevation="2" Class="pa-4">
+        <MudPaper Elevation="0" Class="pa-4 custom-card">
             <div class="d-flex align-center mb-4">
                 <MudIcon Icon="@Icons.Material.Filled.FlashOn" Class="me-2" />
                 <MudText Typo="Typo.h6">Quick Actions</MudText>
@@ -93,7 +93,7 @@
                 <MudItem xs="6" sm="4">
                     <MudButton Variant="Variant.Outlined" 
                                FullWidth="true" 
-                               Class="pa-4 d-flex flex-column"
+                               Class="pa-4 d-flex flex-column box-action"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/import"))">
                         <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="icon-action-color" Size="Size.Large" />
@@ -103,7 +103,7 @@
                 <MudItem xs="6" sm="4">
                     <MudButton Variant="Variant.Outlined" 
                                FullWidth="true" 
-                               Class="pa-4 d-flex flex-column text-black"
+                               Class="pa-4 d-flex flex-column box-action"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/projects"))">
                         <MudIcon Icon="@Icons.Material.Filled.Folder" Class="icon-action-color" Size="Size.Large" />
@@ -113,7 +113,7 @@
                 <MudItem xs="6" sm="4">
                     <MudButton Variant="Variant.Outlined" 
                                FullWidth="true" 
-                               Class="pa-4 d-flex flex-column"
+                               Class="pa-4 d-flex flex-column box-action"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/pivot"))">
                         <MudIcon Icon="@Icons.Material.Filled.TableChart" Class="icon-action-color" Size="Size.Large" />
@@ -123,7 +123,7 @@
                 <MudItem xs="6" sm="4">
                     <MudButton Variant="Variant.Outlined" 
                                FullWidth="true" 
-                               Class="pa-4 d-flex flex-column"
+                               Class="pa-4 d-flex flex-column box-action"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/process/weight"))">
                         <MudIcon Icon="@Icons.Material.Filled.Engineering" Class="icon-action-color" Size="Size.Large" />
@@ -133,7 +133,7 @@
                 <MudItem xs="6" sm="4">
                     <MudButton Variant="Variant.Outlined" 
                                FullWidth="true" 
-                               Class="pa-4 d-flex flex-column"
+                               Class="pa-4 d-flex flex-column box-action"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/crm"))">
                         <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Class="icon-action-color" Size="Size.Large" />
@@ -143,7 +143,7 @@
                 <MudItem xs="6" sm="4">
                     <MudButton Variant="Variant.Outlined" 
                                FullWidth="true" 
-                               Class="pa-4 d-flex flex-column"
+                               Class="pa-4 d-flex flex-column box-action"
                                Style="height: 100px;"
                                OnClick="@(() => NavManager.NavigateTo("/report"))">
                         <MudIcon Icon="@Icons.Material.Filled.Assessment" Class="icon-action-color" Size="Size.Large" />
@@ -156,7 +156,7 @@
 
     <!-- Recent Projects -->
     <MudItem xs="12" md="4">
-        <MudPaper Elevation="2" Class="pa-4" Style="height: 100%;">
+        <MudPaper Elevation="0" Class="pa-4 custom-card" Style="height: 100%;">
             <div class="d-flex align-center mb-4">
                 <MudIcon Icon="@Icons.Material.Filled.History" Class="me-2" />
                 <MudText Typo="Typo.h6">Recent Projects</MudText>
@@ -179,9 +179,8 @@
                 </MudList>
             }
             <MudButton Variant="Variant.Text" 
-                       Color="Color.Primary" 
                        FullWidth="true" 
-                       Class="mt-2"
+                       Class="mt-2 color-dark-blue"
                        OnClick="@(() => NavManager.NavigateTo("/projects"))">
                 VIEW ALL PROJECTS
             </MudButton>
