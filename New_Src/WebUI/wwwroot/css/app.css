@@ -58,6 +58,7 @@
 .color-bg-dark-blue {
     background-color: var(--secondary-color);
     color: #fff;
+    font-weight: 500;
 }
     .color-bg-dark-blue:hover {
         background-color: var(--bg-blue);
@@ -311,3 +312,21 @@ html, body {
         box-shadow: rgba(0, 188, 212, 0.15) 0px 4px 9px !important;
     }
 
+
+
+/* Active NavLink icon color */
+.mud-nav-link.active .mud-icon-root {
+    color: var(--secondary-color) !important;
+}
+
+/* For NavGroup items */
+.mud-navmenu .mud-nav-link.active .mud-icon-root {
+    color: var(--secondary-color) !important;
+}
+.height-75{
+    height:75vh;
+}
+.height-inner{
+    height:87%;
+    overflow:scroll;
+}

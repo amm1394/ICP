@@ -50,8 +50,7 @@
                                 {
                                     <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
                                              Size="Size.Large" 
-                                             Color="Color.Primary" 
-                                             Class="mb-2" />
+                                             Class="mb-2 color-light-blue" />
                                     <MudText Typo="Typo.h6">Drop file here or click to browse</MudText>
                                     <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
                                         Supported formats: CSV, Excel (.xlsx, .xls), TXT
@@ -124,11 +123,11 @@
                     </MudButton>
                     
                     <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
+                               
                                StartIcon="@Icons.Material.Filled.Upload"
                                OnClick="ImportFile"
                                Disabled="@(! CanImport)"
-                               Class="flex-grow-1">
+                               Class="flex-grow-1 color-bg-dark-blue">
                         @if (isLoading)
                         {
                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />

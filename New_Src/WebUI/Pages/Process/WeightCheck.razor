@@ -32,7 +32,7 @@
     }
     else
     {
-        <MudGrid>
+        <MudGrid >
             @* Settings Panel *@
             <MudItem xs="12" md="4">
                 <MudPaper Elevation="2" Class="pa-4">
@@ -99,7 +99,7 @@
 
             @* Results Panel *@
             <MudItem xs="12" md="8">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="2" Class="pa-4 height-75">
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Class="me-2" />
                         Bad Weight Samples
@@ -128,6 +128,7 @@
                     {
                         <MudTable Items="@_badSamples"
                                   Hover="true"
+                                  Class="height-inner"
                                   Dense="true"
                                   MultiSelection="true"
                                   @bind-SelectedItems="_selectedSamples"
