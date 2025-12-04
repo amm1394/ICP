@@ -36,47 +36,54 @@
                               RequiredError="Project name is required"
                               Class="mb-4" />
 
-                <MudFileUpload T="IBrowserFile" 
-                               Accept=".csv,.xlsx,.xls,.txt"
-                               FilesChanged="OnFileSelected"
-                               MaximumFileCount="1"
-                               Class="mb-4">
-                    <ActivatorContent>
-                        <MudPaper Height="200px" 
-                                  Outlined="true" 
-                                  Class="@GetDropZoneClass()">
-                            <div class="d-flex flex-column align-center justify-center" style="height: 100%;">
-                                @if (fileContent == null)
-                                {
-                                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
-                                             Size="Size.Large" 
-                                             Color="Color.Primary" 
-                                             Class="mb-2" />
-                                    <MudText Typo="Typo.h6">Drop file here or click to browse</MudText>
-                                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
-                                        Supported formats: CSV, Excel (.xlsx, .xls), TXT
-                                    </MudText>
-                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                        Maximum file size: 200MB
-                                    </MudText>
-                                }
-                                else
-                                {
-                                    <div class="d-flex align-center gap-3">
-                                        <MudIcon Icon="@fileIcon" Size="Size.Large" Color="Color.Success" />
-                                        <div>
-                                            <MudText Typo="Typo.subtitle1" Class="fw-bold">@fileName</MudText>
-                                            <MudText Typo="Typo.body2" Class="mud-text-secondary">@fileSize</MudText>
-                                        </div>
-                                        <MudIconButton Icon="@Icons.Material.Filled.Close" 
-                                                       Size="Size.Small"
-                                                       OnClick="ClearFile" />
+                <label for="fileInput" style="display: block; cursor: pointer;">
+                    <MudPaper Height="200px" 
+                              Outlined="true" 
+                              Class="@($"{GetDropZoneClass()} mb-4")"
+                              Style="cursor: pointer;">
+                        <InputFile id="fileInput"
+                                   OnChange="OnInputFileChange" 
+                                   accept=".csv,.xlsx,.xls,.txt"
+                                   style="display: none;" />
+                        <div class="d-flex flex-column align-center justify-center" style="height: 100%;">
+                            @if (fileContent == null)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
+                                         Size="Size.Large" 
+                                         Color="Color.Primary"
+                                         Class="mb-2" />
+                                <MudText Typo="Typo.h6">Click to browse files</MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
+                                    Supported formats: CSV, Excel (.xlsx, .xls), TXT
+                                </MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    Maximum file size: 200MB
+                                </MudText>
+                            }
+                            else
+                            {
+                                <div class="d-flex align-center gap-3">
+                                    <MudIcon Icon="@fileIcon" Size="Size.Large" Color="Color.Success" />
+                                    <div>
+                                        <MudText Typo="Typo.subtitle1" Class="fw-bold">@fileName</MudText>
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">@fileSize</MudText>
                                     </div>
-                                }
-                            </div>
-                        </MudPaper>
-                    </ActivatorContent>
-                </MudFileUpload>
+                                </div>
+                            }
+                        </div>
+                    </MudPaper>
+                </label>
+                @if (fileContent != null)
+                {
+                    <MudButton Variant="Variant.Text" 
+                               Color="Color.Error" 
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Close"
+                               OnClick="ClearFile"
+                               Class="mb-4">
+                        Remove File
+                    </MudButton>
+                }
 
                 <MudExpansionPanels Class="mt-4" Elevation="0">
                     <MudExpansionPanel Text="Advanced Options" Expanded="false">
@@ -270,10 +277,20 @@
             : "d-flex flex-column align-center justify-center";
     }
 
+    private async Task OnInputFileChange(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+        await ProcessFile(file);
+    }
     private async Task OnFileSelected(IBrowserFile file)
     {
         if (file == null) return;
-        
+        await ProcessFile(file);
+    }
+
+    private async Task ProcessFile(IBrowserFile file)
+    {
         isLoading = true;
         StateHasChanged();
         
