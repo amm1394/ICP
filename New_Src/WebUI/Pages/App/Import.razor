@@ -12,7 +12,7 @@
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
     
-    <MudPaper Elevation="0" Class="pa-4 mb-4 d-flex justify-space-between align-center custom-card">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 d-flex justify-space-between align-center custom-card-all ">
         <div>
             <MudText Typo="Typo.h4" Class="fw-bold">Import Data</MudText>
             <MudText Typo="Typo.body2" Class="mud-text-secondary">Upload CSV or Excel files to create a new project</MudText>
@@ -26,7 +26,7 @@
 
     <MudGrid>
         <MudItem xs="12" md="7">
-            <MudPaper Elevation="0" Class="pa-4 custom-card">
+            <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                 
                 <MudTextField @bind-Value="projectName"
                               Label="Project Name"
@@ -149,7 +149,7 @@
         </MudItem>
 
         <MudItem xs="12" md="5">
-            <MudPaper Elevation="0" Class="pa-4 custom-card" Style="min-height: 400px;">
+            <MudPaper Elevation="0" Class="pa-4 custom-card-all" Style="min-height: 400px;">
                 <MudText Typo="Typo.h6" Class="mb-4">
                     <MudIcon Icon="@Icons.Material.Filled.TableView" Class="me-2" />
                     Preview
@@ -203,7 +203,7 @@
                 }
             </MudPaper>
 
-            <MudPaper Elevation="0" Class="pa-6 mt-4 custom-card">
+            <MudPaper Elevation="0" Class="pa-6 mt-4 custom-card-all">
                 <MudText Typo="Typo.h6" Class="mb-4">
                     <MudIcon Icon="@Icons.Material.Filled.History" Class="me-2" />
                     Recent Imports

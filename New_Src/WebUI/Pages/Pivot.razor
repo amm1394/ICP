@@ -10,7 +10,7 @@
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
     @* Header *@
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center flex-wrap gap-4">
             <div>
                 <MudText Typo="Typo.h4" Class="fw-bold">Pivot Table</MudText>
@@ -44,7 +44,7 @@
 
     @if (_projectId == null)
     {
-        <MudPaper Elevation="2" Class="pa-8 d-flex flex-column align-center justify-center" Style="min-height: 400px;">
+        <MudPaper Elevation="0" Class="pa-8 d-flex flex-column align-center justify-center custom-card-all" Style="min-height: 400px;">
             <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Large" Color="Color.Primary" Class="mb-4" Style="font-size: 64px; opacity: 0.5;" />
             <MudText Typo="Typo.h5" Class="mb-2">No Project Selected</MudText>
             <MudText Typo="Typo.body1" Class="mud-text-secondary mb-4">Please select a project to view pivot table data</MudText>
@@ -58,7 +58,7 @@
         @* Filters Panel - Only show when not initial loading *@
         @if (!_isLoading || _pivotData != null)
         {
-            <MudExpansionPanels Class="mb-4">
+            <MudExpansionPanels Class="mb-4 custom-card-all">
                 <MudExpansionPanel Text="Filters & Options" Expanded="true">
                     <MudGrid>
                         <MudItem xs="12" md="4">
@@ -118,7 +118,7 @@
         }
 
         @* Data Table *@
-        <MudPaper Elevation="2" Class="pa-0">
+        <MudPaper Elevation="0" Class="pa-0 custom-card-all">
             @if (_isLoading)
             {
                 <div class="d-flex flex-column justify-center align-center py-8" style="min-height: 300px;">

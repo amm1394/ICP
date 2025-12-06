@@ -6,9 +6,20 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>ICP - DF Check</PageTitle>
+<NavigationLock OnBeforeInternalNavigation="OnBeforeNavigation" ConfirmExternalNavigation="_isLoading" />
+@* Loading Overlay *@
+@if (_isLoading)
+{
+    <div class="loading-overlay">
+        <MudPaper Elevation="4" Class="pa-6 d-flex flex-column align-center">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.h6" Class="mt-4">Processing...</MudText>
 
+        </MudPaper>
+    </div>
+}
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center">
             <div>
                 <MudText Typo="Typo.h4" Class="fw-bold">Dilution Factor Check</MudText>
@@ -35,7 +46,7 @@
         <MudGrid>
             @* Settings Panel *@
             <MudItem xs="12" md="3">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.Science" Class="me-2" />
                         DF Settings
@@ -92,7 +103,7 @@
                 </MudPaper>
 
                 @* Summary Card *@
-                <MudPaper Elevation="2" Class="pa-4 mt-4">
+                <MudPaper Elevation="0" Class="pa-4 mt-4 custom-card-all">
                     <MudText Typo="Typo.h6" Class="mb-2">Summary</MudText>
                     <div class="d-flex flex-column gap-2">
                         <div class="d-flex justify-space-between">
@@ -113,7 +124,7 @@
                 @* DF Distribution Chart *@
                 @if (_dfDistribution.Any())
                 {
-                    <MudPaper Elevation="2" Class="pa-4 mt-4">
+                    <MudPaper Elevation="0" Class="pa-4 mt-4 custom-card-all">
                         <MudText Typo="Typo.h6" Class="mb-2">DF Distribution</MudText>
                         @foreach (var dist in _dfDistribution)
                         {
@@ -131,7 +142,7 @@
 
             @* Results Panel *@
             <MudItem xs="12" md="9">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                     @if (!_badDfSamples.Any() && !_isLoading)
                     {
                         <MudAlert Severity="Severity.Info">
@@ -144,6 +155,7 @@
                         <MudTable Items="@_badDfSamples"
                                   Hover="true"
                                   Dense="true"
+                                  Class="box-shadow-0"
                                   FixedHeader="true"
                                   Height="400px">
                             <HeaderContent>
@@ -186,19 +198,20 @@
                 @* All Samples Preview *@
                 @if (_allSamples.Any())
                 {
-                    <MudPaper Elevation="2" Class="pa-4 mt-4">
-                        <MudExpansionPanels>
+                    <MudPaper Elevation="0" Class="pa-4 mt-4 custom-card-all">
+                        <MudExpansionPanels Class="box-shadow-0">
                             <MudExpansionPanel Text="All Samples Preview">
                                 <MudTable Items="@_allSamples.Take(100)"
                                           Hover="true"
+                                          Class="box-shadow-0"
                                           Dense="true"
                                           FixedHeader="true"
-                                          Height="300px">
+                                          Height="240px">
                                     <HeaderContent>
                                         <MudTh>Row</MudTh>
                                         <MudTh>Solution Label</MudTh>
                                         <MudTh>Dilution Factor</MudTh>
-                                        <MudTh>Status</MudTh>
+                                        <MudTh>Status</MudTh>?
                                     </HeaderContent>
                                     <RowTemplate>
                                         <MudTd>@context.RowNumber</MudTd>
@@ -229,7 +242,20 @@
         </MudGrid>
     }
 </MudContainer>
-
+<style>
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+</style>
 @code {
     [SupplyParameterFromQuery]
     public Guid? projectId { get; set; }
@@ -384,5 +410,13 @@
         public decimal DfValue { get; set; }
         public int Count { get; set; }
         public double Percentage { get; set; }
+    }
+
+    private async Task OnBeforeNavigation(LocationChangingContext context)
+    {
+        if (_isLoading)
+        {
+            context.PreventNavigation();
+        }
     }
 }

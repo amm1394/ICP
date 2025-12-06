@@ -7,8 +7,8 @@
 
 <PageTitle>ICP - Projects</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center flex-wrap gap-4">
             <div>
                 <MudText Typo="Typo.h4" Class="fw-bold">Projects</MudText>
@@ -25,7 +25,7 @@
         </div>
     </MudPaper>
 
-    <MudPaper Elevation="2" Class="pa-4">
+    <MudPaper Elevation="0" Class="pa-4 custom-card-all">
         @* Search and Filters *@
         <div class="d-flex gap-4 mb-4 flex-wrap">
             <MudTextField @bind-Value="_searchText"

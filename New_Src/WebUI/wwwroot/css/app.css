@@ -357,3 +357,6 @@ html, body {
     height: 37vh;
     overflow: scroll;
 }
+.box-shadow-0 {
+    box-shadow : 0 0 0 transparent;
+}

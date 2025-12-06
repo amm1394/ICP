@@ -2,43 +2,43 @@
 
 <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined" Class="process-nav">
     <MudButton Href="/process/weight"
-               Color="@(CurrentStep == "weight" ? Color.Primary : Color.Default)"
+               Style="@(CurrentStep == "weight" ? "background-color: #4cc2e6; color: #000; font-weight:600;" : "")"
                Variant="@(CurrentStep == "weight" ? Variant.Filled : Variant.Outlined)">
         <MudIcon Icon="@Icons.Material.Filled.FitnessCenter" Size="Size.Small" Class="me-1" />
         Weight
     </MudButton>
     <MudButton Href="/process/volume"
-               Color="@(CurrentStep == "volume" ? Color.Primary : Color.Default)"
+               Style="@(CurrentStep == "volume" ? "background-color: #4cc2e6; color: #000; font-weight:600;" : "")"
                Variant="@(CurrentStep == "volume" ? Variant.Filled : Variant.Outlined)">
         <MudIcon Icon="@Icons.Material.Filled.Water" Size="Size.Small" Class="me-1" />
         Volume
     </MudButton>
     <MudButton Href="/process/df"
-               Color="@(CurrentStep == "df" ? Color.Primary : Color.Default)"
+               Style="@(CurrentStep == "df" ? "background-color: #4cc2e6; color: #000; font-weight:600;" : "")"
                Variant="@(CurrentStep == "df" ? Variant.Filled : Variant.Outlined)">
         <MudIcon Icon="@Icons.Material.Filled.Compress" Size="Size.Small" Class="me-1" />
         DF
     </MudButton>
     <MudButton Href="/process/empty"
-               Color="@(CurrentStep == "empty" ? Color.Primary : Color.Default)"
+               Style="@(CurrentStep == "empty" ? "background-color: #4cc2e6; color: #000; font-weight:600;" : "")"
                Variant="@(CurrentStep == "empty" ? Variant.Filled : Variant.Outlined)">
         <MudIcon Icon="@Icons.Material.Filled.RemoveCircleOutline" Size="Size.Small" Class="me-1" />
         Empty
     </MudButton>
     <MudButton Href="/process/crm"
-               Color="@(CurrentStep == "crm" ? Color.Primary : Color.Default)"
+               Style="@(CurrentStep == "crm" ? "background-color: #4cc2e6; color: #000; font-weight:600;" : "")"
                Variant="@(CurrentStep == "crm" ? Variant.Filled : Variant.Outlined)">
         <MudIcon Icon="@Icons.Material.Filled.Verified" Size="Size.Small" Class="me-1" />
         CRM
     </MudButton>
     <MudButton Href="/process/drift"
-               Color="@(CurrentStep == "drift" ? Color.Primary : Color.Default)"
+               Style="@(CurrentStep == "drift" ? "background-color: #4cc2e6; color: #000; font-weight:600;" : "")"
                Variant="@(CurrentStep == "drift" ? Variant.Filled : Variant.Outlined)">
         <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" Class="me-1" />
         Drift
     </MudButton>
     <MudButton Href="/process/result"
-               Color="@(CurrentStep == "result" ? Color.Primary : Color.Default)"
+               Style="@(CurrentStep == "result" ? "background-color: #4cc2e6; color: #000; font-weight:600;" : "")"
                Variant="@(CurrentStep == "result" ? Variant.Filled : Variant.Outlined)">
         <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Class="me-1" />
         Result

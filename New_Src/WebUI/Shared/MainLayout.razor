@@ -1,9 +1,10 @@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 @using WebUI.Services
 @inject AuthService AuthService
 @inject NavigationManager NavManager
 
-<MudThemeProvider @bind-IsDarkMode="_isDarkMode" />
+@* <MudThemeProvider @bind-IsDarkMode="_isDarkMode" /> *@
+<MudThemeProvider @bind-IsDarkMode="_isDarkMode" Theme="_customTheme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -35,7 +36,7 @@ else
                 <MudMenuItem Icon="@Icons.Material.Filled.Person">@(user?.Name ?? "User")</MudMenuItem>
                 <MudMenuItem Icon="@Icons.Material.Filled.Badge">@(user?.Position ?? "User")</MudMenuItem>
                 <MudDivider />
-                <MudMenuItem Icon="@Icons.Material.Filled.Settings" OnClick="@(() => NavManager.NavigateTo("/settings"))">Settings</MudMenuItem>
+                @* <MudMenuItem Icon="@Icons.Material.Filled.Settings" OnClick="@(() => NavManager.NavigateTo("/settings"))">Settings</MudMenuItem> *@
                 <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="HandleLogout">Sign Out</MudMenuItem>
             </MudMenu>
         </MudAppBar>
@@ -95,8 +96,8 @@ else
         </MudDrawer>
 
         <!-- Main Content -->
-        <MudMainContent Class="pt-16">
-            <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
+        <MudMainContent Class="pt-16" style="height:100vh;  background-color: var(--bg-surface);">
+            <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4" >
                 @Body
             </MudContainer>
         </MudMainContent>
@@ -120,4 +121,28 @@ else
         await AuthService.LogoutAsync();
         NavManager.NavigateTo("/login");
     }
+    private MudTheme _customTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#1c6397",          // رنگ اصلی (آبی)
+            // Secondary = "#FF4081",         رنگ ثانویه (صورتی)
+            // Tertiary = "#1EC8A5",          رنگ سوم
+            // Info = "#2196F3",              آبی روشن
+            // Success = "#4CAF50",           سبز
+            // Warning = "#FFC107",           زرد
+            // Error = "#F44336",             قرمز
+            AppbarBackground = "#1565C0",  // رنگ هدر
+            DrawerBackground = "#FFFFFF",  // رنگ منوی کناری
+            Background = "#F5F5F5",        // رنگ پس‌زمینه
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#90CAF9",
+            Secondary = "#FF80AB",
+            AppbarBackground = "#1E1E1E",
+            DrawerBackground = "#2D2D2D",
+            Background = "#121212",
+        }
+    };
 }

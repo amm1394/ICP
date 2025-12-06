@@ -6,9 +6,20 @@
 @inject IJSRuntime JSRuntime
 
 <PageTitle>ICP - Reports</PageTitle>
+<NavigationLock OnBeforeInternalNavigation="OnBeforeNavigation" ConfirmExternalNavigation="_isGenerating" />
+@* Loading Overlay *@
+@if (_isGenerating)
+{
+    <div class="loading-overlay">
+        <MudPaper Elevation="4" Class="pa-6 d-flex flex-column align-center">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.h6" Class="mt-4">Processing...</MudText>
 
+        </MudPaper>
+    </div>
+}
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center">
             <div>
                 <MudText Typo="Typo.h4" Class="fw-bold">Reports</MudText>
@@ -30,7 +41,7 @@
         <MudGrid>
             @* Report Options *@
             <MudItem xs="12" md="4">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.Settings" Class="me-2" />
                         Report Options
@@ -116,7 +127,7 @@
 
             @* Report Templates *@
             <MudItem xs="12" md="8">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.Description" Class="me-2" />
                         Quick Report Templates
@@ -214,7 +225,7 @@
                 </MudPaper>
 
                 @* Recent Reports *@
-                <MudPaper Elevation="2" Class="pa-4 mt-4">
+                <MudPaper Elevation="0" Class="pa-4 mt-4 custom-card-all">
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.History" Class="me-2" />
                         Recent Reports
@@ -253,7 +264,20 @@
         </MudGrid>
     }
 </MudContainer>
-
+<style>
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+</style>
 @code {
     [SupplyParameterFromQuery]
     public Guid? projectId { get; set; }
@@ -404,5 +428,12 @@
         public string FileName { get; set; } = "";
         public string Format { get; set; } = "";
         public DateTime GeneratedAt { get; set; }
+    }
+    private async Task OnBeforeNavigation(LocationChangingContext context)
+    {
+        if (_isGenerating)
+        {
+            context.PreventNavigation();
+        }
     }
 }
