@@ -96,8 +96,15 @@ else
         </MudDrawer>
 
         <!-- Main Content -->
-        <MudMainContent Class="pt-16" style="height:100vh;  background-color: var(--bg-surface);">
+        @* <MudMainContent Class="pt-16" style="height:100vh;  background-color: var(--bg-surface);"
+        onclick="toggletheme">
             <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4" >
+                @Body
+            </MudContainer>
+        </MudMainContent> *@
+
+        <MudMainContent Class="pt-16" style="height:100vh; background-color: var(--mud-palette-background);">
+            <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
                 @Body
             </MudContainer>
         </MudMainContent>
@@ -112,7 +119,7 @@ else
 @code {
     private bool _drawerOpen = true;
     private bool _isDarkMode = false;
-
+    
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
     private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
 
@@ -121,20 +128,17 @@ else
         await AuthService.LogoutAsync();
         NavManager.NavigateTo("/login");
     }
+
+ 
     private MudTheme _customTheme = new MudTheme()
     {
         PaletteLight = new PaletteLight()
         {
-            Primary = "#1c6397",          // رنگ اصلی (آبی)
-            // Secondary = "#FF4081",         رنگ ثانویه (صورتی)
-            // Tertiary = "#1EC8A5",          رنگ سوم
-            // Info = "#2196F3",              آبی روشن
-            // Success = "#4CAF50",           سبز
-            // Warning = "#FFC107",           زرد
-            // Error = "#F44336",             قرمز
-            AppbarBackground = "#1565C0",  // رنگ هدر
-            DrawerBackground = "#FFFFFF",  // رنگ منوی کناری
-            Background = "#F5F5F5",        // رنگ پس‌زمینه
+            Primary = "#1c6397",
+            AppbarBackground = "#1565C0",
+            DrawerBackground = "#FFFFFF",
+            Background = "#f1f2f2",
+            Surface = "#FFFFFF",
         },
         PaletteDark = new PaletteDark()
         {
@@ -142,7 +146,8 @@ else
             Secondary = "#FF80AB",
             AppbarBackground = "#1E1E1E",
             DrawerBackground = "#2D2D2D",
-            Background = "#121212",
+            Background = "#1d222f",
+            Surface = "#252b3b",
         }
     };
 }
