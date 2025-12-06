@@ -6,7 +6,18 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>ICP - Drift Correction</PageTitle>
+<NavigationLock OnBeforeInternalNavigation="OnBeforeNavigation" ConfirmExternalNavigation="_isLoading" />
+@* Loading Overlay *@
+@if (_isLoading)
+{
+    <div class="loading-overlay">
+        <MudPaper Elevation="4" Class="pa-6 d-flex flex-column align-center">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.h6" Class="mt-4">Processing...</MudText>
 
+        </MudPaper>
+    </div>
+}
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
     <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center">
@@ -247,6 +258,20 @@
         </MudGrid>
     }
 </MudContainer>
+<style>
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+</style>
 
 @code {
     [SupplyParameterFromQuery]
@@ -351,5 +376,12 @@
         if (abs < 2) return Color.Success;
         if (abs < 5) return Color.Warning;
         return Color.Error;
+    }
+    private async Task OnBeforeNavigation(LocationChangingContext context)
+    {
+        if (_isLoading)
+        {
+            context.PreventNavigation();
+        }
     }
 }

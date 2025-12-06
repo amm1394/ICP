@@ -7,9 +7,20 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>ICP - CRM Calibration</PageTitle>
+<NavigationLock OnBeforeInternalNavigation="OnBeforeNavigation" ConfirmExternalNavigation="_isLoading" />
+@* Loading Overlay *@
+@if (_isLoading)
+{
+    <div class="loading-overlay">
+        <MudPaper Elevation="4" Class="pa-6 d-flex flex-column align-center">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.h6" Class="mt-4">Processing...</MudText>
 
+        </MudPaper>
+    </div>
+}
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center">
             <div>
                 <MudText Typo="Typo.h4" Class="fw-bold">CRM Calibration</MudText>
@@ -36,7 +47,7 @@
         <MudGrid>
             @* Settings Panel *@
             <MudItem xs="12" md="3">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="0" Class="pa-4" custom-card-all>
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.Tune" Class="me-2" />
                         Optimization Settings
@@ -116,7 +127,7 @@
                 @* Model Summary *@
                 @if (_result?.ModelSummary != null)
                 {
-                    <MudPaper Elevation="2" Class="pa-4 mt-4">
+                    <MudPaper Elevation="0" Class="pa-4 mt-4 custom-card-all">
                         <MudText Typo="Typo.h6" Class="mb-2">Model Summary</MudText>
                         <div class="d-flex flex-column gap-2">
                             <div class="d-flex justify-space-between">
@@ -140,7 +151,7 @@
 
             @* Results Panel *@
             <MudItem xs="12" md="9">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                     @if (_result == null)
                     {
                         <MudAlert Severity="Severity.Info">
@@ -152,25 +163,25 @@
                         @* Summary Cards *@
                         <MudGrid Class="mb-4">
                             <MudItem xs="6" sm="3">
-                                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: var(--mud-palette-info-lighten);">
+                                <MudPaper Elevation="0" Class="pa-3 text-center custom-card-all" Style="background: var(--mud-palette-info-lighten);">
                                     <MudText Typo="Typo.h4" Color="Color.Info">@_result.TotalRmSamples</MudText>
                                     <MudText Typo="Typo.caption">RM Samples</MudText>
                                 </MudPaper>
                             </MudItem>
                             <MudItem xs="6" sm="3">
-                                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: var(--mud-palette-warning-lighten);">
+                                <MudPaper Elevation="0" Class="pa-3 text-center custom-card-all" Style="background: var(--mud-palette-warning-lighten);">
                                     <MudText Typo="Typo.h4" Color="Color.Warning">@_result.PassedBefore</MudText>
                                     <MudText Typo="Typo.caption">Passed Before</MudText>
                                 </MudPaper>
                             </MudItem>
                             <MudItem xs="6" sm="3">
-                                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: var(--mud-palette-success-lighten);">
+                                <MudPaper Elevation="0" Class="pa-3 text-center custom-card-all" Style="background: var(--mud-palette-success-lighten);">
                                     <MudText Typo="Typo.h4" Color="Color.Success">@_result.PassedAfter</MudText>
                                     <MudText Typo="Typo.caption">Passed After</MudText>
                                 </MudPaper>
                             </MudItem>
                             <MudItem xs="6" sm="3">
-                                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: var(--mud-palette-secondary-lighten);">
+                                <MudPaper Elevation="0" Class="pa-3 text-center custom-card-all" Style="background: var(--mud-palette-secondary-lighten);">
                                     <MudText Typo="Typo.h4" Color="Color.Secondary">
                                         @(_result.ImprovementPercent > 0 ? "+" : "")@_result.ImprovementPercent.ToString("F1")%
                                     </MudText>
@@ -273,7 +284,20 @@
         </MudGrid>
     }
 </MudContainer>
-
+<style>
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+</style>
 @code {
     [SupplyParameterFromQuery]
     public Guid? projectId { get; set; }
@@ -365,5 +389,13 @@
         }
 
         _isLoading = false;
+    }
+
+    private async Task OnBeforeNavigation(LocationChangingContext context)
+    {
+        if (_isLoading)
+        {
+            context.PreventNavigation();
+        }
     }
 }

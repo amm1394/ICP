@@ -6,9 +6,21 @@
 @inject IDialogService DialogService
 
 <PageTitle>ICP - Empty Check</PageTitle>
+<NavigationLock OnBeforeInternalNavigation="OnBeforeNavigation" ConfirmExternalNavigation="_isLoading" />
+@* Loading Overlay *@
+@if (_isLoading)
+{
+    <div class="loading-overlay">
+        <MudPaper Elevation="4" Class="pa-6 d-flex flex-column align-center">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.h6" Class="mt-4">Processing...</MudText>
+
+        </MudPaper>
+    </div>
+}
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center">
             <div>
                 <MudText Typo="Typo.h4" Class="fw-bold">Empty Check</MudText>
@@ -34,7 +46,7 @@
     {
         <MudGrid>
             <MudItem xs="12" md="3">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.Settings" Class="me-2" />
                         Settings
@@ -68,7 +80,7 @@
 
                 @if (_emptyRows != null && _emptyRows.Any())
                 {
-                    <MudPaper Elevation="2" Class="pa-4 mt-4">
+                    <MudPaper Elevation="0" Class="pa-4 mt-4 custom-card-all">
                         <MudText Typo="Typo.h6" Class="mb-2">Summary</MudText>
                         <div class="d-flex flex-column gap-2">
                             <div class="d-flex justify-space-between">
@@ -160,8 +172,8 @@
                 }
             </MudItem>
 
-            <MudItem xs="12" md="9">
-                <MudPaper Elevation="2" Class="pa-4">
+            <MudItem xs="12" md="9" >
+                <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                     <div class="d-flex justify-space-between align-center mb-4">
                         <MudText Typo="Typo.h6">
                             <MudIcon Icon="@Icons.Material.Filled.RemoveCircleOutline" Color="Color.Warning" Class="me-2" />
@@ -194,7 +206,7 @@
                                   Hover="true"
                                   Dense="true"
                                   FixedHeader="true"
-                                  Height="400px"
+                                  @* Height="200px" *@
                                   T="EmptyRowDto"
                                   OnRowClick="@((args) => { if (args.Item != null) SelectRow(args.Item); })">
                             <HeaderContent>
@@ -271,7 +283,7 @@
                         </div>
 
                         @* Element Details *@
-                        <MudExpansionPanels Class="mt-4">
+                        <MudExpansionPanels Class="mt-4" >
                             <MudExpansionPanel Text="Element Details" @bind-Expanded="_detailsExpanded">
                                 @if (_selectedEmpty != null)
                                 {
@@ -316,6 +328,21 @@
         </MudGrid>
     }
 </MudContainer>
+
+<style>
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+</style>
 
 @code {
     [SupplyParameterFromQuery]
@@ -605,4 +632,12 @@
         if (score < 50) return Color.Warning;
         return Color.Info;
     }
+    private async Task OnBeforeNavigation(LocationChangingContext context)
+    {
+        if (_isLoading)
+        {
+            context.PreventNavigation();
+        }
+    }
+
 }

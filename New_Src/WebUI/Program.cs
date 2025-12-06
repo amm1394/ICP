@@ -18,7 +18,7 @@ builder.Services.AddMudServices(config =>
     config.SnackbarConfiguration.PreventDuplicates = false;
     config.SnackbarConfiguration.NewestOnTop = true;
     config.SnackbarConfiguration.ShowCloseIcon = true;
-    config.SnackbarConfiguration.VisibleStateDuration = 5000;
+    config.SnackbarConfiguration.VisibleStateDuration = 1500;
     config.SnackbarConfiguration.ShowTransitionDuration = 300;
     config.SnackbarConfiguration.HideTransitionDuration = 300;
 });

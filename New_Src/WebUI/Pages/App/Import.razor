@@ -9,10 +9,21 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>ICP - Import Data</PageTitle>
+<NavigationLock OnBeforeInternalNavigation="OnBeforeNavigation" ConfirmExternalNavigation="isLoading" />
+@* Loading Overlay *@
+@if (isLoading)
+{
+    <div class="loading-overlay">
+        <MudPaper Elevation="4" Class="pa-6 d-flex flex-column align-center">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.h6" Class="mt-4">Processing...</MudText>
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+        </MudPaper>
+    </div>
+}
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
     
-    <MudPaper Elevation="0" Class="pa-4 mb-4 d-flex justify-space-between align-center custom-card">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 d-flex justify-space-between align-center custom-card-all ">
         <div>
             <MudText Typo="Typo.h4" Class="fw-bold">Import Data</MudText>
             <MudText Typo="Typo.body2" Class="mud-text-secondary">Upload CSV or Excel files to create a new project</MudText>
@@ -26,7 +37,7 @@
 
     <MudGrid>
         <MudItem xs="12" md="7">
-            <MudPaper Elevation="0" Class="pa-4 custom-card">
+            <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                 
                 <MudTextField @bind-Value="projectName"
                               Label="Project Name"
@@ -149,7 +160,7 @@
         </MudItem>
 
         <MudItem xs="12" md="5">
-            <MudPaper Elevation="0" Class="pa-4 custom-card" Style="min-height: 400px;">
+            <MudPaper Elevation="0" Class="pa-4 custom-card-all" Style="min-height: 400px;">
                 <MudText Typo="Typo.h6" Class="mb-4">
                     <MudIcon Icon="@Icons.Material.Filled.TableView" Class="me-2" />
                     Preview
@@ -203,7 +214,7 @@
                 }
             </MudPaper>
 
-            <MudPaper Elevation="0" Class="pa-6 mt-4 custom-card">
+            <MudPaper Elevation="0" Class="pa-6 mt-4 custom-card-all">
                 <MudText Typo="Typo.h6" Class="mb-4">
                     <MudIcon Icon="@Icons.Material.Filled.History" Class="me-2" />
                     Recent Imports
@@ -230,6 +241,20 @@
         </MudItem>
     </MudGrid>
 </MudContainer>
+<style>
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+</style>
 
 @code {
     private IBrowserFile? selectedFile;
@@ -424,5 +449,12 @@
     {
         public string Name { get; set; } = "";
         public string Status { get; set; } = "";
+    }
+    private async Task OnBeforeNavigation(LocationChangingContext context)
+    {
+        if (isLoading)
+        {
+            context.PreventNavigation();
+        }
     }
 }

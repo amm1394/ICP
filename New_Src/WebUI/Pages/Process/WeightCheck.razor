@@ -1,4 +1,4 @@
-@page "/process/weight"
+﻿@page "/process/weight"
 @using WebUI.Services
 @inject ProjectService ProjectService
 @inject CorrectionService CorrectionService
@@ -7,8 +7,21 @@
 
 <PageTitle>ICP - Weight Check</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
+<NavigationLock OnBeforeInternalNavigation="OnBeforeNavigation" ConfirmExternalNavigation="_isApplying" />
+@if (_isApplying || _isLoading)
+{
+    <div class="loading-overlay">
+        <MudPaper Elevation="4" Class="pa-6 d-flex flex-column align-center">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.h6" Class="mt-4">Processing...</MudText>
+            @* <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Applying corrections to @_selectedSamples.Count samples
+            </MudText> *@
+        </MudPaper>
+    </div>
+}
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center">
             <div>
                 <MudText Typo="Typo.h4" Class="fw-bold">Weight Check</MudText>
@@ -35,7 +48,7 @@
         <MudGrid >
             @* Settings Panel *@
             <MudItem xs="12" md="4">
-                <MudPaper Elevation="2" Class="pa-4">
+                <MudPaper Elevation="0" Class="pa-4 custom-card-all">
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.Settings" Class="me-2" />
                         Settings
@@ -60,7 +73,7 @@
                                FullWidth="true"
                                StartIcon="@Icons.Material.Filled.Search"
                                OnClick="FindBadWeights"
-                               Disabled="_isLoading">
+                               Disabled="@(_isLoading || _isApplying)">
                         @if (_isLoading)
                         {
                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
@@ -99,13 +112,13 @@
 
             @* Results Panel *@
             <MudItem xs="12" md="8">
-                <MudPaper Elevation="2" Class="pa-4 height-75">
+                <MudPaper Elevation="0" Class="pa-4 height-75 custom-card-all">
                     <MudText Typo="Typo.h6" Class="mb-4">
                         <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Class="me-2" />
                         Bad Weight Samples
                         @if (_badSamples != null)
                         {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Error" Class="ms-2">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Class="ms-2">
                                 @_badSamples.Count found
                             </MudChip>
                         }
@@ -175,11 +188,13 @@
                         <div class="d-flex justify-end mt-4 gap-2">
                             <MudButton Variant="Variant.Outlined"
                                        Size="Size.Small"
+                                       Disabled="@(_isLoading || _isApplying)"
                                        OnClick="SelectAll">
                                 Select All
                             </MudButton>
                             <MudButton Variant="Variant.Outlined"
                                        Size="Size.Small"
+                                       Disabled="@(_isLoading || _isApplying)"
                                        OnClick="ClearSelection">
                                 Clear Selection
                             </MudButton>
@@ -190,6 +205,20 @@
         </MudGrid>
     }
 </MudContainer>
+<style>
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+</style>
 
 @code {
     [SupplyParameterFromQuery]
@@ -280,5 +309,13 @@
     private void ClearSelection()
     {
         _selectedSamples.Clear();
+    }
+
+    private async Task OnBeforeNavigation(LocationChangingContext context)
+    {
+        if (_isApplying)
+        {
+            context.PreventNavigation();
+        }
     }
 }

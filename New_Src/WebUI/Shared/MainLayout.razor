@@ -1,9 +1,10 @@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 @using WebUI.Services
 @inject AuthService AuthService
 @inject NavigationManager NavManager
 
-<MudThemeProvider @bind-IsDarkMode="_isDarkMode" />
+@* <MudThemeProvider @bind-IsDarkMode="_isDarkMode" /> *@
+<MudThemeProvider @bind-IsDarkMode="_isDarkMode" Theme="_customTheme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -35,7 +36,7 @@ else
                 <MudMenuItem Icon="@Icons.Material.Filled.Person">@(user?.Name ?? "User")</MudMenuItem>
                 <MudMenuItem Icon="@Icons.Material.Filled.Badge">@(user?.Position ?? "User")</MudMenuItem>
                 <MudDivider />
-                <MudMenuItem Icon="@Icons.Material.Filled.Settings" OnClick="@(() => NavManager.NavigateTo("/settings"))">Settings</MudMenuItem>
+                @* <MudMenuItem Icon="@Icons.Material.Filled.Settings" OnClick="@(() => NavManager.NavigateTo("/settings"))">Settings</MudMenuItem> *@
                 <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="HandleLogout">Sign Out</MudMenuItem>
             </MudMenu>
         </MudAppBar>
@@ -95,7 +96,14 @@ else
         </MudDrawer>
 
         <!-- Main Content -->
-        <MudMainContent Class="pt-16">
+        @* <MudMainContent Class="pt-16" style="height:100vh;  background-color: var(--bg-surface);"
+        onclick="toggletheme">
+            <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4" >
+                @Body
+            </MudContainer>
+        </MudMainContent> *@
+
+        <MudMainContent Class="pt-16" style="height:100vh; background-color: var(--mud-palette-background);">
             <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
                 @Body
             </MudContainer>
@@ -111,7 +119,7 @@ else
 @code {
     private bool _drawerOpen = true;
     private bool _isDarkMode = false;
-
+    
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
     private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
 
@@ -120,4 +128,26 @@ else
         await AuthService.LogoutAsync();
         NavManager.NavigateTo("/login");
     }
+
+ 
+    private MudTheme _customTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#1c6397",
+            AppbarBackground = "#1565C0",
+            DrawerBackground = "#FFFFFF",
+            Background = "#f1f2f2",
+            Surface = "#FFFFFF",
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#90CAF9",
+            Secondary = "#FF80AB",
+            AppbarBackground = "#1E1E1E",
+            DrawerBackground = "#2D2D2D",
+            Background = "#1d222f",
+            Surface = "#252b3b",
+        }
+    };
 }

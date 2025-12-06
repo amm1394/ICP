@@ -7,7 +7,7 @@
 <PageTitle>ICP - CRM Database</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <MudPaper Elevation="0" Class="pa-4 mb-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <div class="d-flex justify-space-between align-center">
             <div>
                 <MudText Typo="Typo.h4" Class="fw-bold">CRM Database</MudText>
@@ -25,7 +25,7 @@
     </MudPaper>
 
     @* Search & Filter *@
-    <MudPaper Elevation="2" Class="pa-4 mb-4">
+    <MudPaper Elevation="0" Class="pa-4 mb-4 custom-card-all">
         <MudGrid>
             <MudItem xs="12" md="4">
                 <MudTextField @bind-Value="_searchText"
@@ -63,7 +63,7 @@
     </MudPaper>
 
     @* CRM Table *@
-    <MudPaper Elevation="2" Class="pa-4">
+    <MudPaper Elevation="0" Class="pa-4 custom-card-all">
         @if (_isLoading)
         {
             <div class="d-flex justify-center align-center" style="min-height: 300px;">
