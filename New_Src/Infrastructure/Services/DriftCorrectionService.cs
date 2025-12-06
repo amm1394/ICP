@@ -25,7 +25,8 @@ public class DriftCorrectionService : IDriftCorrectionService
     // Default patterns for standard detection
     private const string DefaultBasePattern = @"^(BASE|STD|STANDARD)";
     private const string DefaultConePattern = @"^(CONE|CAL)";
-    private static readonly Regex RmPattern = new(@"^(OREAS|SRM|CRM|STANDARD|STD)\s*\d*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    //private static readonly Regex RmPattern = new(@"^(OREAS|SRM|CRM|STANDARD|STD)\s*\d*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex RmPattern = new(@"^(OREAS|SRM|CRM|STANDARD|STD)(?!\s*BLANK)\s*\d*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public DriftCorrectionService(IsatisDbContext db, ILogger<DriftCorrectionService> logger)
     {
@@ -946,17 +947,15 @@ public class DriftCorrectionService : IDriftCorrectionService
         if (string.IsNullOrWhiteSpace(label))
             return false;
 
-        var labelLower = label.ToLower();
-        var keywordLower = keyword.ToLower();
+        var labelLower = label.ToLower().Trim();
+        var keywordLower = keyword.ToLower().Trim();
 
-        // Check if label contains the keyword
-        if (!labelLower.Contains(keywordLower))
+        if (!labelLower.StartsWith(keywordLower))
             return false;
 
         (rmNumber, rmType) = ExtractRmInfo(label, keyword);
         return true;
     }
-
     #endregion
 
     #region Private Types
